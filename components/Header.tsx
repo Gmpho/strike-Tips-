@@ -1,26 +1,36 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AbstractHorseLogo } from './icons';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
-
-const navLinks = ['Story', 'Pricing', 'Learn More'];
+import { View } from '../App';
 
 interface HeaderProps {
-  currentView: 'dashboard' | 'companion' | 'articles';
-  navigateTo: (view: 'dashboard' | 'companion' | 'articles') => void;
+  currentView: View;
+  navigateTo: (view: View) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ currentView, navigateTo }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
 
-  const handleNavClick = (view: 'dashboard' | 'companion' | 'articles') => {
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMenuOpen]);
+
+  const handleNavClick = (view: View) => {
     navigateTo(view);
     setIsMenuOpen(false);
   };
   
-  const getLinkClasses = (view: 'dashboard' | 'companion' | 'articles') => {
+  const getLinkClasses = (view: View) => {
     return `text-sm font-medium transition-colors duration-200 ${currentView === view ? 'text-blue-600 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
   }
 
@@ -36,13 +46,17 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo }) => {
             <button onClick={() => handleNavClick('dashboard')} className={getLinkClasses('dashboard')}>
               Home
             </button>
-            {navLinks.map((link) => (
-              <a key={link} href="#" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 text-sm font-medium">
-                {link}
-              </a>
-            ))}
+            <button onClick={() => handleNavClick('story')} className={getLinkClasses('story')}>
+              Story
+            </button>
+            <button onClick={() => handleNavClick('pricing')} className={getLinkClasses('pricing')}>
+              Pricing
+            </button>
              <button onClick={() => handleNavClick('companion')} className={getLinkClasses('companion')}>
               AI Companion
+             </button>
+             <button onClick={() => handleNavClick('chat')} className={getLinkClasses('chat')}>
+              Chat
              </button>
              <button onClick={() => handleNavClick('articles')} className={getLinkClasses('articles')}>
               Articles
@@ -51,7 +65,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo }) => {
         </div>
         <div className="flex items-center space-x-4">
           <div className="hidden md:flex items-center space-x-8">
-             <a href="#" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 text-sm font-medium">
+             <a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 text-sm font-medium">
                 About
              </a>
           </div>
@@ -89,12 +103,12 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo }) => {
         <div className="md:hidden mt-4 bg-gray-100 dark:bg-[#161B22] rounded-lg p-4">
           <div className="flex flex-col space-y-2">
             <button onClick={() => handleNavClick('dashboard')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">Home</button>
-            {navLinks.map((link) => (
-              <a key={link} href="#" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">{link}</a>
-            ))}
+            <button onClick={() => handleNavClick('story')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">Story</button>
+            <button onClick={() => handleNavClick('pricing')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">Pricing</button>
             <button onClick={() => handleNavClick('companion')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">AI Companion</button>
+            <button onClick={() => handleNavClick('chat')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">Chat</button>
             <button onClick={() => handleNavClick('articles')} className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">Articles</button>
-            <a href="#" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">About</a>
+            <a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 p-2 rounded">About</a>
           </div>
         </div>
       )}

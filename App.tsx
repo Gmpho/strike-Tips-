@@ -7,14 +7,17 @@ import PredictionDashboard from './components/PredictionDashboard';
 import Footer from './components/Footer';
 import AIChatCompanion from './components/AIChatCompanion';
 import Articles from './components/Articles';
+import Story from './components/Story';
+import Pricing from './components/Pricing';
+import Chat from './components/Chatbot';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-type View = 'dashboard' | 'companion' | 'articles';
+export type View = 'dashboard' | 'companion' | 'articles' | 'story' | 'pricing' | 'chat';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('dashboard');
-  const [initialCompanionPrompt, setInitialCompanionPrompt] = useState<string>('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const navigateTo = (newView: View) => {
     setView(newView);
@@ -22,8 +25,11 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleAnalyzeWithAi = (prompt: string) => {
-    setInitialCompanionPrompt(prompt);
+  const handleTriggerRefresh = () => {
+    setRefreshTrigger(c => c + 1);
+  };
+
+  const handleAnalyzeWithAi = () => {
     navigateTo('companion');
   };
 
@@ -31,7 +37,7 @@ const App: React.FC = () => {
     <>
       <Hero />
       <Features />
-      <PredictionDashboard onAnalyze={handleAnalyzeWithAi} />
+      <PredictionDashboard onAnalyze={handleAnalyzeWithAi} refreshTrigger={refreshTrigger} />
     </>
   );
 
@@ -40,9 +46,15 @@ const App: React.FC = () => {
       case 'dashboard':
         return <DashboardContent />;
       case 'companion':
-        return <AIChatCompanion initialPrompt={initialCompanionPrompt} />;
+        return <AIChatCompanion navigateTo={navigateTo} onRefreshData={handleTriggerRefresh} />;
       case 'articles':
         return <Articles />;
+      case 'story':
+        return <Story />;
+      case 'pricing':
+        return <Pricing />;
+      case 'chat':
+        return <Chat />;
       default:
         return <DashboardContent />;
     }

@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AnalyzeIcon, VolumeUpIcon, RefreshIcon } from './icons';
+import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon } from './icons';
 import { fetchRealtimeRaces, Race, Horse } from '../lib/gemini';
 import { speak } from '../lib/audio';
 
@@ -13,7 +12,8 @@ const getConfidenceColor = (confidence: number) => {
 };
 
 interface PredictionDashboardProps {
-  onAnalyze: (prompt: string) => void;
+  onAnalyze: () => void;
+  refreshTrigger: number;
 }
 
 // Generate a random confidence score to supplement the fetched data
@@ -28,7 +28,7 @@ const addDynamicData = (races: Race[]): Race[] => {
     }));
 };
 
-const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) => {
+const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, refreshTrigger }) => {
     const { isAuthenticated, login } = useAuth();
     const [expandedRows, setExpandedRows] = useState<{ [key: number]: number | null }>({});
     const [races, setRaces] = useState<Race[]>([]);
@@ -37,6 +37,10 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
     const [updatedOdds, setUpdatedOdds] = useState<{ [key: string]: boolean }>({});
     const [voiceFeedbackEnabled, setVoiceFeedbackEnabled] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const prevRefreshTriggerRef = useRef(refreshTrigger);
+    const [isListening, setIsListening] = useState(false);
+    const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
+    const recognitionRef = useRef<any>(null); // Using 'any' for SpeechRecognition vendor prefixes
 
     const loadRaces = useCallback(async (isManualRefresh = false) => {
         if (isManualRefresh) {
@@ -71,6 +75,101 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
         const intervalId = setInterval(() => loadRaces(), 30 * 60 * 1000);
         return () => clearInterval(intervalId);
     }, [isAuthenticated, loadRaces]);
+
+    useEffect(() => {
+        // This effect triggers a refresh when the refreshTrigger prop changes.
+        if (prevRefreshTriggerRef.current !== refreshTrigger && isAuthenticated) {
+            loadRaces(true);
+        }
+        prevRefreshTriggerRef.current = refreshTrigger;
+    }, [refreshTrigger, isAuthenticated, loadRaces]);
+
+    // Check for Speech Recognition support and clean up on unmount
+    useEffect(() => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        setIsSpeechRecognitionSupported(!!SpeechRecognition);
+        
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.abort();
+                recognitionRef.current = null;
+            }
+        };
+    }, []);
+    
+    const handleToggleListening = () => {
+        if (isListening) {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+            return; // onend will handle setting isListening to false
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setError("Speech recognition is not supported in this browser.");
+            return;
+        }
+
+        setError(null);
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        
+        recognition.continuous = false; // Stop after first utterance
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+            setIsListening(true);
+        };
+
+        recognition.onresult = (event: any) => {
+            const command = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+            console.log('Voice command received:', command);
+
+            if (command.includes('refresh data')) {
+                loadRaces(true);
+                speak('Refreshing race data now.');
+            } else if (command.includes('analyze race')) {
+                onAnalyze();
+            }
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error, event.message);
+            let errorMessage = '';
+            switch(event.error) {
+                case 'no-speech':
+                case 'aborted':
+                    // These are common, non-critical events, so we can ignore them.
+                    break;
+                case 'audio-capture':
+                    errorMessage = "Microphone not found or is in use. Please check your mic connection and browser permissions.";
+                    break;
+                case 'network':
+                    errorMessage = "Network error: Speech recognition is unavailable. Please check your internet connection.";
+                    break;
+                case 'not-allowed':
+                    errorMessage = "Microphone permission denied. Please enable it in your browser's settings for this site.";
+                    break;
+                case 'service-not-allowed':
+                     errorMessage = "Speech recognition is not allowed by your browser or a security policy. Please check your browser settings.";
+                    break;
+                default:
+                    errorMessage = `An unexpected speech error occurred (${event.error}). Please try again.`;
+                    break;
+            }
+            if (errorMessage) setError(errorMessage);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            recognitionRef.current = null;
+        };
+
+        recognition.start();
+    };
+
 
     // Simulate real-time odds fluctuation
     useEffect(() => {
@@ -161,9 +260,8 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
         }));
     };
     
-    const handleAnalyzeClick = (race: Race) => {
-        const prompt = `Provide a detailed analysis of Race ${race.raceNumber} at ${race.course}. The track condition is ${race.trackCondition}. Here are the horses: ${race.horses.map(h => `${h.name} (Jockey: ${h.jockey}, Form: ${h.form}, Odds: (h as any).odds})`).join(', ')}. Compare their forms and jockey stats, and use your search tool to find any recent news or expert opinions on these contenders. Give me a breakdown of the top 3 contenders.`;
-        onAnalyze(prompt);
+    const handleAnalyzeClick = () => {
+        onAnalyze();
     };
 
     if (!isAuthenticated) {
@@ -192,7 +290,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                     <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">Live Race Predictions</h2>
                     <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Real-time data and AI-powered insights for upcoming races.</p>
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-4">
+                <div className="flex-shrink-0 flex items-center gap-2 sm:gap-4">
                     <button
                         onClick={() => setVoiceFeedbackEnabled(!voiceFeedbackEnabled)}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 ${
@@ -205,6 +303,19 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                         <VolumeUpIcon className="w-5 h-5" />
                         <span className="hidden sm:inline">{voiceFeedbackEnabled ? 'Voice ON' : 'Voice OFF'}</span>
                     </button>
+                     <button
+                        onClick={handleToggleListening}
+                        disabled={!isSpeechRecognitionSupported}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isListening
+                                ? 'bg-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
+                                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                        aria-label={isListening ? 'Stop listening for voice commands' : 'Start listening for voice commands'}
+                    >
+                        <MicrophoneIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline">{isListening ? 'Listening...' : 'Commands'}</span>
+                    </button>
                     <button
                         onClick={() => loadRaces(true)}
                         disabled={isRefreshing || loading}
@@ -212,7 +323,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                         aria-label="Refresh race data"
                     >
                         <RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        <span>Refresh</span>
+                         <span className="hidden sm:inline">Refresh</span>
                     </button>
                 </div>
             </div>
@@ -254,7 +365,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                                         <p className="text-sm text-gray-600 dark:text-gray-400">Scheduled At</p>
                                         <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{race.startsIn}</p>
                                     </div>
-                                     <button onClick={() => handleAnalyzeClick(race)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-blue-600/90 dark:bg-blue-600/80 rounded-md hover:bg-blue-600 transition-colors">
+                                     <button onClick={handleAnalyzeClick} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-blue-600/90 dark:bg-blue-600/80 rounded-md hover:bg-blue-600 transition-colors">
                                         <AnalyzeIcon className="w-4 h-4" />
                                         Analyze with AI
                                      </button>
@@ -262,10 +373,10 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left text-gray-600 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-100 dark:bg-[#21262D]/30">
+                                    <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-100 dark:bg-[#21262D]/30 hidden md:table-header-group">
                                         <tr>
                                             <th scope="col" className="px-6 py-3">Horse</th>
-                                            <th scope="col" className="px-6 py-3 hidden md:table-cell">Jockey</th>
+                                            <th scope="col" className="px-6 py-3">Jockey</th>
                                             <th scope="col" className="px-6 py-3">Odds</th>
                                             <th scope="col" className="px-6 py-3">AI Confidence</th>
                                             <th scope="col" className="px-6 py-3"><span className="sr-only">Details</span></th>
@@ -274,38 +385,77 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                                     <tbody>
                                         {race.horses.map((horse) => (
                                             <React.Fragment key={(horse as any).id}>
-                                                <tr className="bg-transparent hover:bg-gray-100/50 dark:hover:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 last:border-b-0">
-                                                    <th scope="row" className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{horse.name}</th>
-                                                    <td className="px-6 py-4 hidden md:table-cell">{horse.jockey}</td>
-                                                    <td className={`px-6 py-4 font-mono transition-colors duration-1000 ${updatedOdds[`${race.id}-${(horse as any).id}`] ? 'bg-yellow-400/20' : 'bg-transparent'}`}>{(horse as any).odds}</td>
-                                                    <td className="px-6 py-4">
+                                                <tr className="hover:bg-gray-100/50 dark:hover:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 last:border-b-0">
+                                                    {/* Mobile Card View */}
+                                                    <td className="p-4 md:hidden" colSpan={5}>
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <div>
+                                                                <p className="font-bold text-lg text-gray-900 dark:text-white">{horse.name}</p>
+                                                                <p className="text-sm text-gray-500 dark:text-gray-400">{horse.jockey}</p>
+                                                            </div>
+                                                            <div className={`font-mono text-lg transition-colors duration-1000 ${updatedOdds[`${race.id}-${(horse as any).id}`] ? 'bg-yellow-400/20 rounded px-2' : 'bg-transparent'}`}>
+                                                                {(horse as any).odds}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`font-bold w-10 ${getConfidenceColor((horse as any).confidence)}`}>{(horse as any).confidence}%</span>
+                                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div className={`h-2 rounded-full ${getConfidenceColor((horse as any).confidence).replace('text-green-500', 'bg-green-500').replace('text-yellow-500', 'bg-yellow-500').replace('text-orange-500', 'bg-orange-500').replace('dark:text-green-400', 'dark:bg-green-400').replace('dark:text-yellow-400', 'dark:bg-yellow-400').replace('dark:text-orange-400', 'dark:bg-orange-400')}`} style={{ width: `${(horse as any).confidence}%` }}></div>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => handleToggleRow(race.id, (horse as any).id)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline flex items-center gap-1">
+                                                                Details
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${expandedRows[race.id] === (horse as any).id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Desktop Table View */}
+                                                    <td scope="row" className="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap hidden md:table-cell">
+                                                        {horse.name}
+                                                    </td>
+                                                    <td className="px-6 py-4 hidden md:table-cell">
+                                                        {horse.jockey}
+                                                    </td>
+                                                    <td className={`px-6 py-4 font-mono transition-colors duration-1000 hidden md:table-cell ${updatedOdds[`${race.id}-${(horse as any).id}`] ? 'bg-yellow-400/20' : 'bg-transparent'}`}>
+                                                        {(horse as any).odds}
+                                                    </td>
+                                                    <td className="px-6 py-4 hidden md:table-cell">
                                                         <div className="flex items-center gap-2">
                                                             <span className={`font-bold w-10 ${getConfidenceColor((horse as any).confidence)}`}>{(horse as any).confidence}%</span>
-                                                            <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                            <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                                                 <div className={`h-2 rounded-full ${getConfidenceColor((horse as any).confidence).replace('text-green-500', 'bg-green-500').replace('text-yellow-500', 'bg-yellow-500').replace('text-orange-500', 'bg-orange-500').replace('dark:text-green-400', 'dark:bg-green-400').replace('dark:text-yellow-400', 'dark:bg-yellow-400').replace('dark:text-orange-400', 'dark:bg-orange-400')}`} style={{ width: `${(horse as any).confidence}%` }}></div>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <button onClick={() => handleToggleRow(race.id, (horse as any).id)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline flex items-center gap-1">
-                                                            Details
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${expandedRows[race.id] === (horse as any).id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                            </svg>
+                                                    <td className="px-6 py-4 text-right hidden md:table-cell">
+                                                        <button onClick={() => handleToggleRow(race.id, (horse as any).id)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">
+                                                            {expandedRows[race.id] === (horse as any).id ? 'Hide' : 'Details'}
                                                         </button>
                                                     </td>
                                                 </tr>
                                                 {expandedRows[race.id] === (horse as any).id && (
-                                                    <tr className="bg-gray-50 dark:bg-gray-900/50">
-                                                        <td colSpan={5} className="px-6 py-4">
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                                    <tr className="bg-gray-100/50 dark:bg-gray-800/20">
+                                                        <td colSpan={5} className="p-4">
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                                                 <div>
-                                                                    <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wider">Recent Form</h4>
-                                                                    <p className="font-mono bg-gray-200 dark:bg-gray-800 p-2 rounded w-fit">{horse.form}</p>
+                                                                    <p className="text-xs text-gray-500 uppercase">Form</p>
+                                                                    <p className="font-bold text-gray-800 dark:text-white mt-1">{horse.form}</p>
                                                                 </div>
                                                                 <div>
-                                                                    <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wider">Jockey Stats</h4>
-                                                                    <p>{(horse as any).jockeyStats}</p>
+                                                                    <p className="text-xs text-gray-500 uppercase">Weight</p>
+                                                                    <p className="font-bold text-gray-800 dark:text-white mt-1">9-5</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-500 uppercase">Trainer</p>
+                                                                    <p className="font-bold text-gray-800 dark:text-white mt-1">A P O'Brien</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-500 uppercase">Jockey Stats</p>
+                                                                    <p className="font-bold text-gray-800 dark:text-white mt-1">{(horse as any).jockeyStats}</p>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -320,9 +470,13 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze }) 
                     ))}
                 </div>
             )}
-             {!loading && !error && races.length === 0 && (
-                <div className="text-center text-gray-500 dark:text-gray-500 py-10">
-                    <p>No upcoming races found at the moment. Please check back later.</p>
+
+            {!loading && !error && races.length === 0 && (
+                 <div className="text-center bg-gray-100 dark:bg-[#161B22] p-8 md:p-12 rounded-lg border border-gray-200 dark:border-gray-800">
+                    <h2 className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white">No Races Found</h2>
+                    <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                        There are no upcoming races matching the criteria for today or tomorrow. Please check back later or refresh.
+                    </p>
                 </div>
             )}
         </section>
