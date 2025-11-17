@@ -4,7 +4,11 @@ import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon } from './icons'
 import { fetchRealtimeRaces, Race, Horse } from '../lib/gemini';
 import { speak } from '../lib/audio';
 
-
+/**
+ * Determines the color of the confidence score text based on its value.
+ * @param confidence The AI's confidence score (0-100).
+ * @returns A string of Tailwind CSS classes for the color.
+ */
 const getConfidenceColor = (confidence: number) => {
   if (confidence > 85) return 'text-green-500 dark:text-green-400';
   if (confidence > 75) return 'text-yellow-500 dark:text-yellow-400';
@@ -16,7 +20,12 @@ interface PredictionDashboardProps {
   refreshTrigger: number;
 }
 
-// Generate a random confidence score to supplement the fetched data
+/**
+ * Injects placeholder dynamic data into the race data fetched from the API.
+ * This is used to simulate a more feature-rich frontend than what the model provides by default.
+ * @param races The array of races from the Gemini API.
+ * @returns The array of races with added dynamic data like confidence scores.
+ */
 const addDynamicData = (races: Race[]): Race[] => {
     return races.map(race => ({
         ...race,
@@ -28,20 +37,41 @@ const addDynamicData = (races: Race[]): Race[] => {
     }));
 };
 
+/**
+ * The main dashboard component for displaying live horse racing predictions.
+ * It handles fetching data, simulating real-time updates, managing UI state,
+ * and responding to voice commands.
+ */
 const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, refreshTrigger }) => {
     const { isAuthenticated, login } = useAuth();
+    // State to manage which horse's details are expanded in each race.
     const [expandedRows, setExpandedRows] = useState<{ [key: number]: number | null }>({});
+    // State to store the race data fetched from the API.
     const [races, setRaces] = useState<Race[]>([]);
+    // State to track the initial loading state.
     const [loading, setLoading] = useState(true);
+    // State to store and display any errors from the API or speech recognition.
     const [error, setError] = useState<string | null>(null);
+    // State to track which horse odds have recently updated for a visual flash effect.
     const [updatedOdds, setUpdatedOdds] = useState<{ [key: string]: boolean }>({});
+    // State to enable or disable text-to-speech feedback for odds changes.
     const [voiceFeedbackEnabled, setVoiceFeedbackEnabled] = useState(false);
+    // State to track when a manual refresh is in progress.
     const [isRefreshing, setIsRefreshing] = useState(false);
+    // Ref to track the previous value of refreshTrigger to detect changes.
     const prevRefreshTriggerRef = useRef(refreshTrigger);
+    // State for the Web Speech API to indicate when it's actively listening.
     const [isListening, setIsListening] = useState(false);
+    // State to check if the browser supports the Web Speech API.
     const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
+    // Ref to hold the SpeechRecognition instance.
     const recognitionRef = useRef<any>(null); // Using 'any' for SpeechRecognition vendor prefixes
 
+    /**
+     * Memoized function to fetch race data from the Gemini API.
+     * It handles setting loading/refreshing states and manages errors.
+     * @param isManualRefresh - Differentiates between initial load and user-triggered refresh.
+     */
     const loadRaces = useCallback(async (isManualRefresh = false) => {
         if (isManualRefresh) {
             setIsRefreshing(true);
@@ -53,8 +83,13 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
             const raceData = await fetchRealtimeRaces();
             const racesWithDynamicData = addDynamicData(raceData);
             setRaces(racesWithDynamicData);
-        } catch (err: any) {
-            setError('Failed to fetch live race data. The AI may be busy or sources unavailable. Please try again later.');
+        } catch (err) {
+            // Set the user-friendly error message from our enhanced error handling in gemini.ts
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('An unknown error occurred while fetching race data.');
+            }
             console.error(err);
         } finally {
             if (isManualRefresh) {
@@ -65,26 +100,36 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
         }
     }, []);
 
+    /**
+     * Effect for initial data loading and setting up an auto-refresh interval.
+     * This runs only once when the component mounts and the user is authenticated.
+     */
     useEffect(() => {
         if (!isAuthenticated) {
             setLoading(false);
             return;
         }
         loadRaces();
-        // Refresh data every 30 minutes
+        // Refresh data every 30 minutes to keep it relatively fresh.
         const intervalId = setInterval(() => loadRaces(), 30 * 60 * 1000);
         return () => clearInterval(intervalId);
     }, [isAuthenticated, loadRaces]);
 
+    /**
+     * Effect to handle manual refresh requests triggered from the parent component
+     * (e.g., via a voice command in the AI Companion).
+     */
     useEffect(() => {
-        // This effect triggers a refresh when the refreshTrigger prop changes.
         if (prevRefreshTriggerRef.current !== refreshTrigger && isAuthenticated) {
             loadRaces(true);
         }
         prevRefreshTriggerRef.current = refreshTrigger;
     }, [refreshTrigger, isAuthenticated, loadRaces]);
 
-    // Check for Speech Recognition support and clean up on unmount
+    /**
+     * Effect to check for browser support for the Web Speech API on mount
+     * and to clean up the recognition instance on unmount.
+     */
     useEffect(() => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         setIsSpeechRecognitionSupported(!!SpeechRecognition);
@@ -97,6 +142,10 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
         };
     }, []);
     
+    /**
+     * Toggles the voice command listener on and off.
+     * It sets up the SpeechRecognition instance with callbacks for results, errors, and end of speech.
+     */
     const handleToggleListening = () => {
         if (isListening) {
             if (recognitionRef.current) {
@@ -171,7 +220,10 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
     };
 
 
-    // Simulate real-time odds fluctuation
+    /**
+     * Effect to simulate real-time odds fluctuations.
+     * This adds a dynamic feel to the dashboard.
+     */
     useEffect(() => {
         if (!isAuthenticated || races.length === 0) return;
 
@@ -264,6 +316,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
         onAnalyze();
     };
 
+    // Render a call-to-action if the user is not authenticated.
     if (!isAuthenticated) {
         return (
             <section className="py-16 md:py-24" id="predictions">
@@ -328,6 +381,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
                 </div>
             </div>
             
+            {/* Conditional rendering for loading, error, and data states */}
             {loading && (
                 <div className="flex justify-center items-center h-40">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -406,6 +460,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
                                                             </div>
                                                             <button onClick={() => handleToggleRow(race.id, (horse as any).id)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline flex items-center gap-1">
                                                                 Details
+                                                                {/* FIX: Removed duplicate attributes from SVG element */}
                                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${expandedRows[race.id] === (horse as any).id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                                 </svg>

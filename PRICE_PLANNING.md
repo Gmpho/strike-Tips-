@@ -1,4 +1,3 @@
-
 # 💰 Pricing Strategy & Plan Breakdown
 
 This document outlines the strategic thinking behind the pricing structure for the Horse Racing Analytics AI platform. Our approach is value-based, designed to cater to a wide spectrum of users from casual enthusiasts to professional syndicates.

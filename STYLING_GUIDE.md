@@ -1,4 +1,3 @@
-
 # 🎨 UI & Styling Guide
 
 This document outlines the design system and styling conventions for the Horse Racing Analytics AI application. Adhering to these guidelines ensures a consistent, accessible, and high-quality user interface.

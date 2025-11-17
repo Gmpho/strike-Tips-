@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchRacingArticles, Article } from '../lib/gemini';
 
@@ -35,8 +34,13 @@ const Articles: React.FC = () => {
         try {
             const articleData = await fetchRacingArticles();
             setArticles(articleData);
-        } catch (err: any) {
-            setError('Failed to fetch racing news. The AI may be busy, please try again later.');
+        } catch (err) {
+            // Set the user-friendly error message from our enhanced error handling
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('An unknown error occurred while fetching articles.');
+            }
             console.error(err);
         } finally {
             setLoading(false);

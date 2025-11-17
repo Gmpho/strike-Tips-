@@ -1,7 +1,9 @@
-
 import { GoogleGenAI } from '@google/genai';
 
-// Define the types for our data structures
+// --- Type Definitions ---
+// These types define the data structures used throughout the application,
+// ensuring type safety and clear contracts for what the API functions return.
+
 export type Horse = {
     id: number;
     name: string;
@@ -30,18 +32,32 @@ export type Article = {
     imageUrl: string;
 };
 
+/**
+ * Extracts a JSON object from a string that might contain a markdown code block.
+ * The Gemini model sometimes wraps its JSON output in ```json ... ```,
+ * and this utility robustly handles that case.
+ * @param text The raw text response from the Gemini model.
+ * @returns The parsed JSON object, or null if parsing fails.
+ */
 const extractJsonFromMarkdown = <T>(text: string): T | null => {
+    // Regex to find a JSON code block. It captures the content between the fences.
     const match = text.match(/```json\n([\s\S]*?)\n```/);
+    // If a match is found, use the captured group; otherwise, assume the whole string is JSON.
     const jsonString = match ? match[1] : text;
     try {
         return JSON.parse(jsonString) as T;
     } catch (e) {
         console.error("Failed to parse JSON:", e);
-        console.error("Original text from model:", text);
+        console.error("Original text from model:", text); // Log the problematic text for debugging.
         return null;
     }
 };
 
+/**
+ * A helper function to initialize the GoogleGenAI client.
+ * It centralizes the API key check, throwing an error if it's not configured.
+ * @returns An instance of the GoogleGenAI client.
+ */
 const getAI = () => {
     if (!process.env.API_KEY) {
         throw new Error("API_KEY is not set in environment variables.");
@@ -49,89 +65,144 @@ const getAI = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
+/**
+ * Fetches real-time, upcoming horse races using the Gemini API with Google Search grounding.
+ * @returns A promise that resolves to an array of Race objects.
+ * @throws An error with a user-friendly message if the fetch fails.
+ */
 export const fetchRealtimeRaces = async (): Promise<Race[]> => {
-    const ai = getAI();
-    const now = new Date();
-    // Get time in HH:MM format
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    const prompt = `
-        Your task is to find 4-5 real, upcoming horse races.
-        The user's current local time is ${currentTime}.
+    try {
+        const ai = getAI();
+        const now = new Date();
+        const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        
+        // This detailed prompt is crucial for guiding the model to return accurate and correctly formatted data.
+        const prompt = `
+            Your task is to find 4-5 real, upcoming horse races.
+            The user's current local time is ${currentTime}.
 
-        **Search Priority:**
-        1.  First, search for races starting today AFTER ${currentTime}.
-        2.  If you cannot find any more races for today, then search for races scheduled for TOMORROW.
-        3.  Prioritize races from the following countries: South Africa, USA, UK, Ireland, Australia, and Hong Kong. Use reputable sources like racingpost.com, attheraces.com, skyracing.com.au, or timeform.com.
+            **Search Priority:**
+            1.  First, search for races starting today AFTER ${currentTime}.
+            2.  If you cannot find any more races for today, then search for races scheduled for TOMORROW.
+            3.  Prioritize races from the following countries: South Africa, USA, UK, Ireland, Australia, and Hong Kong. Use reputable sources like racingpost.com, attheraces.com, skyracing.com.au, or timeform.com.
 
-        **Output Format:**
-        You MUST format your response as a single JSON object inside a markdown code block. Do not write any explanation.
+            **Output Format:**
+            You MUST format your response as a single JSON object inside a markdown code block. Do not write any explanation.
 
-        The JSON must be an array of 'Race' objects with this exact structure:
-        - id: a unique number for the race.
-        - day: a string, either "Today" or "Tomorrow". This is MANDATORY.
-        - course: the name of the racetrack.
-        - raceNumber: the number of the race.
-        - startsIn: the start time in "HH:MM" format.
-        - trackCondition: the current condition of the track (e.g., "Good", "Soft"). If not found, use "N/A".
-        - distance: the race distance (e.g., "1m 2f").
-        - prize: the prize money (e.g., "£5,000"). If not found, use "N/A".
-        - horses: an array of 'Horse' objects for that race.
+            The JSON must be an array of 'Race' objects with this exact structure:
+            - id: a unique number for the race.
+            - day: a string, either "Today" or "Tomorrow". This is MANDATORY.
+            - course: the name of the racetrack.
+            - raceNumber: the number of the race.
+            - startsIn: the start time in "HH:MM" format.
+            - trackCondition: the current condition of the track (e.g., "Good", "Soft"). If not found, use "N/A".
+            - distance: the race distance (e.g., "1m 2f").
+            - prize: the prize money (e.g., "£5,000"). If not found, use "N/A".
+            - horses: an array of 'Horse' objects for that race.
 
-        Each 'Horse' object must have:
-        - id: a unique number for the horse.
-        - name: the horse's name.
-        - jockey: the jockey's name.
-        - odds: the current odds (e.g., "5/1", "EVS"). If not available, use "TBD".
-        - form: the horse's recent form (e.g., "1-2-3"). If not available, use "-".
+            Each 'Horse' object must have:
+            - id: a unique number for the horse.
+            - name: the horse's name.
+            - jockey: the jockey's name.
+            - odds: the current odds (e.g., "5/1", "EVS"). If not available, use "TBD".
+            - form: the horse's recent form (e.g., "1-2-3"). If not available, use "-".
 
-        **CRITICAL RULE:** You MUST return a valid JSON array, even if you can only find a few races or if some details are unavailable. Do not apologize or explain. Just return the data you find in the correct JSON format.
-    `;
-    
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            tools: [{ googleSearch: {} }],
-        },
-    });
+            **CRITICAL RULE:** You MUST return a valid JSON array, even if you can only find a few races or if some details are unavailable. Do not apologize or explain. Just return the data you find in the correct JSON format.
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                // This enables Google Search grounding, allowing the model to fetch up-to-date information.
+                tools: [{ googleSearch: {} }],
+            },
+        });
 
-    const races = extractJsonFromMarkdown<Race[]>(response.text);
-    if (!races) {
-        throw new Error("AI failed to return valid JSON for races.");
+        const races = extractJsonFromMarkdown<Race[]>(response.text);
+        if (!races) {
+            // This error is specific to the model's output format.
+            throw new Error("The AI returned data in an unexpected format. A quick refresh should fix it.");
+        }
+        return races;
+    } catch (error) {
+        console.error("Error fetching realtime races:", error);
+        
+        // --- Enhanced Error Handling ---
+        // Provide specific, user-friendly error messages based on the error type.
+        
+        // Network errors often manifest as a TypeError from the underlying fetch call.
+        if (error instanceof TypeError) {
+             throw new Error('Network error. Please check your internet connection and try again.');
+        }
+        
+        if (error instanceof Error) {
+            // Re-throw our custom format error to be displayed to the user.
+            if (error.message.includes("unexpected format")) {
+                throw error;
+            }
+            // Catch other API or model-side errors (e.g., 500s, invalid API key).
+            throw new Error('Could not fetch race data. The AI service may be busy or unavailable. Please try again later.');
+        }
+
+        // Fallback for any other unexpected errors.
+        throw new Error('An unknown error occurred while fetching race data.');
     }
-    return races;
 };
 
-
+/**
+ * Fetches recent horse racing news articles using the Gemini API with Google Search grounding.
+ * @returns A promise that resolves to an array of Article objects.
+ * @throws An error with a user-friendly message if the fetch fails.
+ */
 export const fetchRacingArticles = async (): Promise<Article[]> => {
-    const ai = getAI();
-    const prompt = `
-        Fetch 6 recent, high-quality news articles strictly about horse racing.
-        It is critical to follow these rules:
-        1.  **Topic Focus**: The articles MUST be about horse racing ONLY. Do NOT include articles about other sports, politics, music, or any unrelated topics.
-        2.  **Source Diversity**: The articles must come from at least 3 different reputable sources (e.g., BloodHorse, Racing Post, TDN, Paulick Report). Do not use the same source for all articles.
-        3.  **Mandatory Images**: For EVERY article, you MUST provide a valid, publicly accessible, high-quality image URL ('imageUrl'). This field cannot be null or empty. If the source article does not have a suitable image, you MUST use your search tool to find a relevant one.
-        4.  **Output Format**: Return the data ONLY as a JSON object inside a markdown code block. The JSON must be an array of "Article" objects.
+    try {
+        const ai = getAI();
+        const prompt = `
+            Fetch 6 recent, high-quality news articles strictly about horse racing.
+            It is critical to follow these rules:
+            1.  **Topic Focus**: The articles MUST be about horse racing ONLY. Do NOT include articles about other sports, politics, music, or any unrelated topics.
+            2.  **Source Diversity**: The articles must come from at least 3 different reputable sources (e.g., BloodHorse, Racing Post, TDN, Paulick Report). Do not use the same source for all articles.
+            3.  **Mandatory Images**: For EVERY article, you MUST provide a valid, publicly accessible, high-quality image URL ('imageUrl'). This field cannot be null or empty. If the source article does not have a suitable image, you MUST use your search tool to find a relevant one.
+            4.  **Output Format**: Return the data ONLY as a JSON object inside a markdown code block. The JSON must be an array of "Article" objects.
+            
+            Each "Article" object must have the following properties:
+            - title (string): The headline of the article.
+            - link (string): The direct URL to the article.
+            - source (string): The name of the news publication.
+            - summary (string): A brief, one-sentence summary of the article.
+            - imageUrl (string): A direct URL to a relevant, high-quality image for the article. This is mandatory.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                // Enable Google Search to find recent articles.
+                tools: [{ googleSearch: {} }],
+            },
+        });
+
+        const articles = extractJsonFromMarkdown<Article[]>(response.text);
+        if (!articles) {
+            throw new Error("The AI returned news in an unexpected format. A quick refresh should fix it.");
+        }
+        return articles;
+    } catch (error) {
+        console.error("Error fetching racing articles:", error);
+
+        // --- Enhanced Error Handling (same pattern as fetchRealtimeRaces) ---
+        if (error instanceof TypeError) {
+             throw new Error('Network error. Please check your internet connection and try again.');
+        }
+
+        if (error instanceof Error) {
+            if (error.message.includes("unexpected format")) {
+                throw error;
+            }
+            throw new Error('Could not fetch racing news. The AI service may be busy or unavailable. Please try again later.');
+        }
         
-        Each "Article" object must have the following properties:
-        - title (string): The headline of the article.
-        - link (string): The direct URL to the article.
-        - source (string): The name of the news publication.
-        - summary (string): A brief, one-sentence summary of the article.
-        - imageUrl (string): A direct URL to a relevant, high-quality image for the article. This is mandatory.
-    `;
-
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            tools: [{ googleSearch: {} }],
-        },
-    });
-
-    const articles = extractJsonFromMarkdown<Article[]>(response.text);
-    if (!articles) {
-        throw new Error("AI failed to return valid JSON for articles.");
+        throw new Error('An unknown error occurred while fetching articles.');
     }
-    return articles;
 };

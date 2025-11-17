@@ -1,21 +1,37 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Chat as GenAIChat } from '@google/genai';
 import { AbstractHorseLogo } from './icons';
 
+// Defines the structure of a single chat message.
 type Message = {
     role: 'user' | 'model';
     text: string;
 };
 
+/**
+ * A text-based chatbot component that allows users to have a conversation
+ * with a Gemini model specialized in horse racing knowledge.
+ */
 const Chat: React.FC = () => {
+    // State to hold the active chat session instance from the Gemini API.
     const [chat, setChat] = useState<GenAIChat | null>(null);
+    // State to store the history of messages in the current conversation.
     const [messages, setMessages] = useState<Message[]>([]);
+    // State for the user's current input in the text field.
     const [userInput, setUserInput] = useState('');
+    // State to track when the model is processing a response.
     const [isLoading, setIsLoading] = useState(false);
+    // State to display any errors that occur during the chat session.
     const [error, setError] = useState<string | null>(null);
+    // Ref to the end of the messages container, used for auto-scrolling.
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    /**
+     * Effect to initialize the chat session when the component mounts.
+     * It creates a new chat instance with a specific system instruction.
+     */
     useEffect(() => {
         const initChat = () => {
             try {
@@ -26,10 +42,12 @@ const Chat: React.FC = () => {
                 const chatSession = ai.chats.create({
                     model: 'gemini-2.5-flash',
                     config: {
+                        // The system instruction sets the persona and rules for the AI model.
                         systemInstruction: 'You are a friendly and knowledgeable horse racing expert. Answer questions about horse racing history, terminology, famous horses, and betting strategies. Keep your answers concise and easy to understand for beginners. Do not provide real-time tips or predictions.',
                     },
                 });
                 setChat(chatSession);
+                // Add an initial greeting message from the model.
                 setMessages([
                     { role: 'model', text: "Hello! I'm your friendly horse racing expert. Ask me anything about the sport!" }
                 ]);
@@ -41,16 +59,25 @@ const Chat: React.FC = () => {
         initChat();
     }, []);
 
+    /**
+     * Scrolls the message container to the bottom.
+     */
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    // Trigger auto-scroll whenever the messages array is updated.
     useEffect(scrollToBottom, [messages]);
 
+    /**
+     * Handles the submission of a new message from the user.
+     * It sends the message to the Gemini API and updates the chat history.
+     */
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!userInput.trim() || isLoading || !chat) return;
 
+        // Optimistically add the user's message to the UI.
         const userMessage: Message = { role: 'user', text: userInput.trim() };
         setMessages(prev => [...prev, userMessage]);
         setUserInput('');
@@ -58,13 +85,14 @@ const Chat: React.FC = () => {
         setError(null);
 
         try {
+            // Send the message to the model and wait for the response.
             const response = await chat.sendMessage({ message: userMessage.text });
             const modelMessage: Message = { role: 'model', text: response.text };
             setMessages(prev => [...prev, modelMessage]);
         } catch (err) {
             console.error("Error sending message:", err);
             setError('Sorry, I encountered an error. Please try again.');
-            // Re-add user message to input if sending fails
+            // If an error occurs, roll back the optimistic UI update.
             setUserInput(userMessage.text);
             setMessages(prev => prev.slice(0, -1));
         } finally {
@@ -72,6 +100,11 @@ const Chat: React.FC = () => {
         }
     };
 
+    /**
+     * Renders a single message bubble.
+     * @param message The message object to render.
+     * @param index The index of the message in the array.
+     */
     const renderMessage = (message: Message, index: number) => (
         <div key={index} className={`flex gap-3 my-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {message.role === 'model' && (
@@ -80,6 +113,7 @@ const Chat: React.FC = () => {
                 </div>
             )}
             <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200'}`}>
+                {/* Using pre-wrap to preserve newlines from the model's response */}
                 <p className="text-sm" style={{ whiteSpace: 'pre-wrap' }}>{message.text}</p>
             </div>
         </div>
@@ -94,8 +128,10 @@ const Chat: React.FC = () => {
                 </header>
                 
                 <div className="h-[60vh] bg-white dark:bg-[#161B22] border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col shadow-lg">
+                    {/* Message display area */}
                     <div className="flex-1 p-4 overflow-y-auto">
                         {messages.map(renderMessage)}
+                        {/* Loading indicator for when the model is thinking */}
                         {isLoading && (
                              <div className="flex gap-3 my-4 justify-start">
                                 <div className="w-8 h-8 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center">
@@ -113,6 +149,7 @@ const Chat: React.FC = () => {
                         <div ref={messagesEndRef} />
                     </div>
                     
+                    {/* User input area */}
                     <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                         {error && (
                             <p className="text-sm text-red-500 mb-2 text-center">{error}</p>
