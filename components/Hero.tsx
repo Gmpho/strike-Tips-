@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { GoogleIcon } from './icons';
 import { useAuth } from '../context/AuthContext';
@@ -36,8 +35,8 @@ const Hero: React.FC = () => {
         {/* Image Content */}
         <div className="relative flex items-center justify-center">
             <img 
-                src="https://storage.googleapis.com/aistudio-hosting/generative-ai-for-developers/images/horse_racing.png" 
-                alt="Jockey on a racing horse" 
+                src="https://images.unsplash.com/photo-1598971821434-65153542289c?q=80&w=1974&auto=format&fit=crop" 
+                alt="Two jockeys on racing horses competing intensely on a grass track" 
                 className="rounded-lg z-10 max-w-full h-auto"
             />
              <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-[#0D1117] via-transparent to-transparent z-20"></div>

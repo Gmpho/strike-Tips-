@@ -62,12 +62,12 @@ const App: React.FC = () => {
     setRefreshTrigger(c => c + 1);
   };
 
-  /**
-   * A specific navigation handler for when the user clicks an "Analyze" button,
-   * directing them to the AI Companion view.
-   */
-  const handleAnalyzeWithAi = () => {
+  const handleAnalyzeWithCompanion = () => {
     navigateTo('companion');
+  };
+
+  const handleAnalyzeWithChat = () => {
+    navigateTo('chat');
   };
 
   /**
@@ -78,7 +78,11 @@ const App: React.FC = () => {
     <>
       <Hero />
       <Features />
-      <PredictionDashboard onAnalyze={handleAnalyzeWithAi} refreshTrigger={refreshTrigger} />
+      <PredictionDashboard 
+        onAnalyzeWithCompanion={handleAnalyzeWithCompanion}
+        onAnalyzeWithChat={handleAnalyzeWithChat}
+        refreshTrigger={refreshTrigger} 
+      />
     </>
   );
 

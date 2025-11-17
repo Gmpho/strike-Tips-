@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon } from './icons';
+import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon, ChatIcon } from './icons';
 import { fetchRealtimeRaces, Race, Horse } from '../lib/gemini';
 import { speak } from '../lib/audio';
 
@@ -16,7 +16,8 @@ const getConfidenceColor = (confidence: number) => {
 };
 
 interface PredictionDashboardProps {
-  onAnalyze: () => void;
+  onAnalyzeWithCompanion: () => void;
+  onAnalyzeWithChat: () => void;
   refreshTrigger: number;
 }
 
@@ -42,7 +43,7 @@ const addDynamicData = (races: Race[]): Race[] => {
  * It handles fetching data, simulating real-time updates, managing UI state,
  * and responding to voice commands.
  */
-const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, refreshTrigger }) => {
+const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWithCompanion, onAnalyzeWithChat, refreshTrigger }) => {
     const { isAuthenticated, login } = useAuth();
     // State to manage which horse's details are expanded in each race.
     const [expandedRows, setExpandedRows] = useState<{ [key: number]: number | null }>({});
@@ -66,6 +67,29 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
     const [isSpeechRecognitionSupported, setIsSpeechRecognitionSupported] = useState(false);
     // Ref to hold the SpeechRecognition instance.
     const recognitionRef = useRef<any>(null); // Using 'any' for SpeechRecognition vendor prefixes
+    // State to manage which analysis dropdown is open
+    const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+
+    /**
+     * Effect to close the analysis dropdown when clicking anywhere outside of it.
+     */
+    useEffect(() => {
+        const closeDropdown = () => {
+            setOpenDropdown(null);
+        };
+        document.addEventListener('click', closeDropdown);
+        return () => document.removeEventListener('click', closeDropdown);
+    }, []);
+
+    const handleToggleDropdown = (e: React.MouseEvent, raceId: number) => {
+        e.stopPropagation();
+        setOpenDropdown(prev => (prev === raceId ? null : raceId));
+    };
+    
+    const handleAnalysisSelection = (analysisFn: () => void) => {
+        analysisFn();
+        setOpenDropdown(null);
+    };
 
     /**
      * Memoized function to fetch race data from the Gemini API.
@@ -180,7 +204,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
                 loadRaces(true);
                 speak('Refreshing race data now.');
             } else if (command.includes('analyze race')) {
-                onAnalyze();
+                onAnalyzeWithCompanion();
             }
         };
 
@@ -312,10 +336,6 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
         }));
     };
     
-    const handleAnalyzeClick = () => {
-        onAnalyze();
-    };
-
     // Render a call-to-action if the user is not authenticated.
     if (!isAuthenticated) {
         return (
@@ -419,10 +439,42 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyze, re
                                         <p className="text-sm text-gray-600 dark:text-gray-400">Scheduled At</p>
                                         <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{race.startsIn}</p>
                                     </div>
-                                     <button onClick={handleAnalyzeClick} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-blue-600/90 dark:bg-blue-600/80 rounded-md hover:bg-blue-600 transition-colors">
-                                        <AnalyzeIcon className="w-4 h-4" />
-                                        Analyze with AI
-                                     </button>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={(e) => handleToggleDropdown(e, race.id)} 
+                                            className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-blue-600/90 dark:bg-blue-600/80 rounded-md hover:bg-blue-600 transition-colors"
+                                            aria-haspopup="true"
+                                            aria-expanded={openDropdown === race.id}
+                                        >
+                                            <AnalyzeIcon className="w-4 h-4" />
+                                            Analyze
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${openDropdown === race.id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        {openDropdown === race.id && (
+                                            <div 
+                                                className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#21262D] border border-gray-200 dark:border-gray-800 rounded-md shadow-lg z-20 origin-top-right"
+                                                onClick={(e) => e.stopPropagation()}
+                                                role="menu"
+                                            >
+                                                <ul className="py-1" role="none">
+                                                    <li role="menuitem">
+                                                        <button onClick={() => handleAnalysisSelection(onAnalyzeWithCompanion)} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                                            <MicrophoneIcon className="w-4 h-4" />
+                                                            With J.A.R.V.I.S. (Voice)
+                                                        </button>
+                                                    </li>
+                                                    <li role="menuitem">
+                                                        <button onClick={() => handleAnalysisSelection(onAnalyzeWithChat)} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                                            <ChatIcon className="w-4 h-4" />
+                                                            With Expert Chat
+                                                        </button>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="overflow-x-auto">
