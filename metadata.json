@@ -1,0 +1,7 @@
+{
+  "name": "Horse Racing Analytics",
+  "description": "A web application for real-time predictions and RAG analysis for global horse racing, built with React and Tailwind CSS.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
