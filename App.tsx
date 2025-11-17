@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -13,12 +11,19 @@ import Pricing from './components/Pricing';
 import Chat from './components/Chatbot';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import Updates from './components/Updates';
+import Contact from './components/Contact';
+import Careers from './components/Careers';
+import Terms from './components/Terms';
+import Privacy from './components/Privacy';
+import Gambling from './components/Gambling';
+
 
 /**
  * Defines the possible views/pages a user can navigate to within the application.
  * This type is used to control which component is rendered as the main content.
  */
-export type View = 'dashboard' | 'companion' | 'articles' | 'story' | 'pricing' | 'chat';
+export type View = 'dashboard' | 'companion' | 'articles' | 'story' | 'pricing' | 'chat' | 'updates' | 'contact' | 'careers' | 'terms' | 'privacy' | 'gambling';
 
 /**
  * The root component of the application.
@@ -95,6 +100,18 @@ const App: React.FC = () => {
         return <Pricing />;
       case 'chat':
         return <Chat />;
+      case 'updates':
+        return <Updates />;
+      case 'contact':
+        return <Contact />;
+      case 'careers':
+        return <Careers />;
+      case 'terms':
+        return <Terms />;
+      case 'privacy':
+        return <Privacy />;
+      case 'gambling':
+        return <Gambling />;
       default:
         return <DashboardContent />;
     }
@@ -113,7 +130,7 @@ const App: React.FC = () => {
               </main>
             </div>
           </div>
-          <Footer />
+          <Footer navigateTo={navigateTo} currentView={view} />
         </div>
       </AuthProvider>
     </ThemeProvider>

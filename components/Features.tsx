@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { PredictionIcon, GlobeIcon, FingerprintIcon } from './icons';
 
@@ -38,7 +39,7 @@ const Features: React.FC = () => {
   ];
 
   return (
-    <section className="py-16 md:py-24">
+    <section id="features" className="py-16 md:py-24">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {featuresData.map((feature) => (
           <FeatureCard key={feature.title} {...feature} />
