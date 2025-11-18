@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon, ChatIcon, TrophyIcon } from './icons';
+// FIX: Import `GoogleIcon` to resolve the 'Cannot find name 'GoogleIcon'' error.
+import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon, ChatIcon, TrophyIcon, GoogleIcon } from './icons';
 import { fetchRealtimeRaces, Race, Horse, fetchPastRaces, PastRace, PastHorse } from '../lib/gemini';
 import { speak } from '../lib/audio';
 
@@ -462,9 +463,10 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
                     </p>
                     <button 
                         onClick={login}
-                        className="mt-8 px-8 py-3 text-base font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                        className="mt-8 px-8 py-3 text-base font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center gap-2 mx-auto"
                     >
-                        Sign In to View Dashboard
+                        <GoogleIcon className="w-5 h-5" />
+                        Sign In with Google to View Dashboard
                     </button>
                 </div>
             </section>
@@ -764,6 +766,13 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
 
     return (
         <section className="py-16 md:py-24" id="predictions">
+            <div className="mb-12">
+                <img 
+                    src="https://storage.googleapis.com/aistudio-hosting/generative-ai-for-developers/images/horse_racing_hero.png" 
+                    alt="Jockey on a racing horse in a close finish."
+                    className="w-full h-auto max-h-[400px] object-cover rounded-lg shadow-2xl shadow-blue-900/10"
+                />
+            </div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">Prediction Dashboard</h2>

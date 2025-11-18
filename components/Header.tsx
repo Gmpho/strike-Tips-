@@ -1,10 +1,11 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { AbstractHorseLogo } from './icons';
+import { AbstractHorseLogo, GoogleIcon } from './icons';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { View } from '../App';
+import { useTheme } from '../context/ThemeContext';
 
 interface HeaderProps {
   currentView: View;
@@ -14,7 +15,8 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ currentView, navigateTo, isOverlay = false }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, login } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (isMenuOpen) {
@@ -32,16 +34,22 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo, isOverlay = fa
     setIsMenuOpen(false);
   };
   
-  // --- New Styling Logic for Glassmorphism ---
   const getNavLinkClasses = (view: View) => {
     const baseClasses = "px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 backdrop-blur-sm";
     const isActive = currentView === view;
 
     if (isOverlay) {
-        if (isActive) {
-            return `${baseClasses} bg-white/20 border border-white/20 text-white`;
+        if (theme === 'light') {
+            if (isActive) {
+                return `${baseClasses} bg-black/10 text-gray-900 font-semibold`;
+            }
+            return `${baseClasses} text-gray-700 hover:bg-black/5 hover:text-gray-900`;
+        } else { // Dark theme
+            if (isActive) {
+                return `${baseClasses} bg-white/20 border border-white/20 text-white`;
+            }
+            return `${baseClasses} bg-white/5 border border-transparent text-gray-300 hover:bg-white/20 hover:text-white`;
         }
-        return `${baseClasses} bg-white/5 border border-white/10 text-gray-300 hover:bg-white/20 hover:text-white`;
     }
     
     // Standard page styles (dark mode aware)
@@ -54,21 +62,27 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo, isOverlay = fa
   const getAboutLinkClasses = () => {
       const baseClasses = "px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 backdrop-blur-sm";
       if(isOverlay) {
-          return `${baseClasses} bg-white/5 border border-white/10 text-gray-300 hover:bg-white/20 hover:text-white`;
+          if (theme === 'light') {
+              return `${baseClasses} text-gray-700 hover:bg-black/5 hover:text-gray-900`;
+          }
+          return `${baseClasses} bg-white/5 border border-transparent text-gray-300 hover:bg-white/20 hover:text-white`;
       }
       return `${baseClasses} bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/20 hover:text-gray-900 dark:hover:text-white`;
   }
 
   const getSignInButtonClasses = () => {
-    const baseClasses = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 backdrop-blur-sm";
+    const baseClasses = "px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-300 backdrop-blur-sm flex items-center justify-center gap-2";
     if (isOverlay) {
+        if (theme === 'light') {
+            return `${baseClasses} bg-black/5 border border-gray-900/10 text-gray-900 hover:bg-black/10`;
+        }
         return `${baseClasses} bg-white/10 border border-white/20 text-white hover:bg-white/20`;
     }
     return `${baseClasses} bg-gray-200 dark:bg-white/10 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-white/20`;
   }
 
-  const logoColorClass = isOverlay ? 'text-white' : 'text-gray-900 dark:text-white';
-  const hamburgerColorClass = isOverlay ? 'text-white' : 'text-gray-900 dark:text-white';
+  const logoColorClass = isOverlay && theme === 'light' ? 'text-gray-900' : isOverlay ? 'text-white' : 'text-gray-900 dark:text-white';
+  const hamburgerColorClass = isOverlay && theme === 'light' ? 'text-gray-900' : isOverlay ? 'text-white' : 'text-gray-900 dark:text-white';
 
   return (
     <header className="py-6">
@@ -109,19 +123,13 @@ const Header: React.FC<HeaderProps> = ({ currentView, navigateTo, isOverlay = fa
               Sign Out
             </button>
           ) : (
-            <a
-              href="#predictions"
-              onClick={(e) => {
-                if(currentView !== 'dashboard') {
-                  e.preventDefault();
-                  navigateTo('dashboard');
-                   setTimeout(() => document.getElementById('predictions')?.scrollIntoView({ behavior: 'smooth' }), 100);
-                }
-              }}
+            <button
+              onClick={login}
               className={getSignInButtonClasses()}
             >
-              Sign In
-            </a>
+              <GoogleIcon className="w-4 h-4" />
+              Sign in with Google
+            </button>
           )}
           <button className={`md:hidden ${hamburgerColorClass}`} onClick={() => setIsMenuOpen(!isMenuOpen)}>
              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
