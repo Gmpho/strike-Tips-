@@ -32,6 +32,17 @@ export type Article = {
     imageUrl: string;
 };
 
+// New types for past results
+export type PastHorse = Horse & {
+    resultPosition: number; // 1 for 1st, 2 for 2nd, etc.
+};
+
+export type PastRace = Omit<Race, 'horses' | 'startsIn' | 'day'> & {
+    raceDate: string; // e.g., "Yesterday" or a specific date
+    horses: PastHorse[];
+};
+
+
 /**
  * Extracts a JSON object from a string that might contain a markdown code block.
  * The Gemini model sometimes wraps its JSON output in ```json ... ```,
@@ -65,12 +76,53 @@ const getAI = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
+// --- Caching Utilities ---
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+const getFromCache = <T>(key: string): T | null => {
+    try {
+        const item = sessionStorage.getItem(key);
+        if (!item) return null;
+        const cached = JSON.parse(item);
+        if (Date.now() - cached.timestamp > CACHE_DURATION_MS) {
+            sessionStorage.removeItem(key);
+            return null;
+        }
+        return cached.data as T;
+    } catch (e) {
+        console.error("Failed to read from cache:", e);
+        return null;
+    }
+};
+
+const setInCache = <T>(key: string, data: T) => {
+    try {
+        const item = {
+            data,
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem(key, JSON.stringify(item));
+    } catch (e) {
+        console.error("Failed to write to cache:", e);
+    }
+};
+
 /**
  * Fetches real-time, upcoming horse races using the Gemini API with Google Search grounding.
+ * @param forceRefresh - Bypasses the cache if true.
  * @returns A promise that resolves to an array of Race objects.
  * @throws An error with a user-friendly message if the fetch fails.
  */
-export const fetchRealtimeRaces = async (): Promise<Race[]> => {
+export const fetchRealtimeRaces = async (forceRefresh = false): Promise<Race[]> => {
+    const cacheKey = 'realtimeRaces';
+    if (!forceRefresh) {
+        const cachedData = getFromCache<Race[]>(cacheKey);
+        if (cachedData) {
+            console.log("Serving realtime races from cache.");
+            return cachedData;
+        }
+    }
+
     try {
         const ai = getAI();
         const now = new Date();
@@ -124,38 +176,50 @@ export const fetchRealtimeRaces = async (): Promise<Race[]> => {
             // This error is specific to the model's output format.
             throw new Error("The AI returned data in an unexpected format. A quick refresh should fix it.");
         }
+        setInCache(cacheKey, races); // Cache the new data
         return races;
     } catch (error) {
         console.error("Error fetching realtime races:", error);
         
-        // --- Enhanced Error Handling ---
-        // Provide specific, user-friendly error messages based on the error type.
-        
-        // Network errors often manifest as a TypeError from the underlying fetch call.
-        if (error instanceof TypeError) {
-             throw new Error('Network error. Please check your internet connection and try again.');
+        const errorString = String(error);
+        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+            throw new Error('The service is experiencing high demand. Please wait a moment and try refreshing again.');
         }
-        
+
         if (error instanceof Error) {
-            // Re-throw our custom format error to be displayed to the user.
+            // Check for our custom format error
             if (error.message.includes("unexpected format")) {
                 throw error;
             }
-            // Catch other API or model-side errors (e.g., 500s, invalid API key).
+            // This is likely a network issue from the browser side.
+            if (error instanceof TypeError) {
+                throw new Error('Network error. Please check your internet connection and try again.');
+            }
+            // Generic fallback for other API errors (e.g., 500 internal server error, bad API key)
             throw new Error('Could not fetch race data. The AI service may be busy or unavailable. Please try again later.');
         }
 
-        // Fallback for any other unexpected errors.
+        // Fallback for non-Error types being thrown
         throw new Error('An unknown error occurred while fetching race data.');
     }
 };
 
 /**
  * Fetches recent horse racing news articles using the Gemini API with Google Search grounding.
+ * @param forceRefresh - Bypasses the cache if true.
  * @returns A promise that resolves to an array of Article objects.
  * @throws An error with a user-friendly message if the fetch fails.
  */
-export const fetchRacingArticles = async (): Promise<Article[]> => {
+export const fetchRacingArticles = async (forceRefresh = false): Promise<Article[]> => {
+    const cacheKey = 'racingArticles';
+    if (!forceRefresh) {
+        const cachedData = getFromCache<Article[]>(cacheKey);
+        if (cachedData) {
+            console.log("Serving racing articles from cache.");
+            return cachedData;
+        }
+    }
+
     try {
         const ai = getAI();
         const prompt = `
@@ -187,22 +251,118 @@ export const fetchRacingArticles = async (): Promise<Article[]> => {
         if (!articles) {
             throw new Error("The AI returned news in an unexpected format. A quick refresh should fix it.");
         }
+        setInCache(cacheKey, articles); // Cache the new data
         return articles;
     } catch (error) {
         console.error("Error fetching racing articles:", error);
 
-        // --- Enhanced Error Handling (same pattern as fetchRealtimeRaces) ---
-        if (error instanceof TypeError) {
-             throw new Error('Network error. Please check your internet connection and try again.');
+        const errorString = String(error);
+        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+            throw new Error('The service is experiencing high demand. Please wait a moment and try refreshing again.');
         }
 
         if (error instanceof Error) {
+            // Check for our custom format error
             if (error.message.includes("unexpected format")) {
                 throw error;
             }
+            // This is likely a network issue from the browser side.
+            if (error instanceof TypeError) {
+                throw new Error('Network error. Please check your internet connection and try again.');
+            }
+            // Generic fallback for other API errors (e.g., 500 internal server error, bad API key)
             throw new Error('Could not fetch racing news. The AI service may be busy or unavailable. Please try again later.');
         }
         
         throw new Error('An unknown error occurred while fetching articles.');
+    }
+};
+
+
+/**
+ * Fetches past horse race results using the Gemini API with Google Search grounding.
+ * @param forceRefresh - Bypasses the cache if true.
+ * @returns A promise that resolves to an array of PastRace objects.
+ * @throws An error with a user-friendly message if the fetch fails.
+ */
+export const fetchPastRaces = async (forceRefresh = false): Promise<PastRace[]> => {
+    const cacheKey = 'pastRaces';
+    if (!forceRefresh) {
+        const cachedData = getFromCache<PastRace[]>(cacheKey);
+        if (cachedData) {
+            console.log("Serving past races from cache.");
+            return cachedData;
+        }
+    }
+
+    try {
+        const ai = getAI();
+        const prompt = `
+            Your task is to find the results for 4-5 real horse races that finished yesterday.
+
+            **Search Priority:**
+            1.  Find completed races from YESTERDAY.
+            2.  Prioritize major races from the following countries: South Africa, USA, UK, Ireland, Australia, and Hong Kong. Use reputable sources like racingpost.com, attheraces.com, skyracing.com.au, or timeform.com to find official results.
+
+            **Output Format:**
+            You MUST format your response as a single JSON object inside a markdown code block. Do not write any explanation.
+
+            The JSON must be an array of 'PastRace' objects with this exact structure:
+            - id: a unique number for the race.
+            - raceDate: a string, always "Yesterday".
+            - course: the name of the racetrack.
+            - raceNumber: the number of the race.
+            - trackCondition: the condition of the track at the time of the race. If not found, use "N/A".
+            - distance: the race distance.
+            - prize: the prize money. If not found, use "N/A".
+            - horses: an array of 'PastHorse' objects for that race.
+
+            Each 'PastHorse' object must have:
+            - id: a unique number for the horse.
+            - name: the horse's name.
+            - jockey: the jockey's name.
+            - odds: the starting price (SP) odds (e.g., "5/1", "EVS"). If not available, use "TBD".
+            - form: the horse's form leading into the race. If not available, use "-".
+            - resultPosition: an integer representing the horse's final finishing position (1 for 1st, 2 for 2nd, etc.). This is MANDATORY.
+
+            **CRITICAL RULE:** You MUST return a valid JSON array. Do not apologize or explain. Just return the data you find in the correct JSON format. Find at least 15-20 horses in total across all races.
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+            },
+        });
+
+        const pastRaces = extractJsonFromMarkdown<PastRace[]>(response.text);
+        if (!pastRaces) {
+            throw new Error("The AI returned past results in an unexpected format. A quick refresh should fix it.");
+        }
+        setInCache(cacheKey, pastRaces); // Cache the new data
+        return pastRaces;
+    } catch (error) {
+        console.error("Error fetching past races:", error);
+        
+        const errorString = String(error);
+        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+            throw new Error('The service is experiencing high demand. Please wait a moment and try refreshing again.');
+        }
+
+        if (error instanceof Error) {
+            // Check for our custom format error
+            if (error.message.includes("unexpected format")) {
+                throw error;
+            }
+            // This is likely a network issue from the browser side.
+            if (error instanceof TypeError) {
+                throw new Error('Network error. Please check your internet connection and try again.');
+            }
+            // Generic fallback for other API errors (e.g., 500 internal server error, bad API key)
+            throw new Error('Could not fetch past race data. The AI service may be busy or unavailable. Please try again later.');
+        }
+        
+        throw new Error('An unknown error occurred while fetching past race data.');
     }
 };

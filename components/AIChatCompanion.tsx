@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 // FIX: Removed `LiveSession` as it is not an exported member of '@google/genai'.
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, FunctionDeclaration, Type } from '@google/genai';
-import { AbstractHorseLogo, MicrophoneIcon, StopIcon } from './icons';
+import { AbstractHorseLogo, MicrophoneIcon, StopIcon, InfoIcon, TrashIcon } from './icons';
 import { View } from '../App';
 
 /**
@@ -125,7 +125,7 @@ const AIChatCompanion: React.FC<AIChatCompanionProps> = ({ navigateTo, onRefresh
     const playingAudioSources = useRef<Set<AudioBufferSourceNode>>(new Set());
     // Ref to track the next start time for audio playback, ensuring gapless audio.
     const nextAudioStartTime = useRef(0);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
     
     // Refs for the microphone volume visualization
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -465,56 +465,75 @@ const AIChatCompanion: React.FC<AIChatCompanionProps> = ({ navigateTo, onRefresh
     const renderTranscript = (transcript: Transcript) => (
         <div key={transcript.id} className={`flex gap-3 my-4 ${transcript.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {transcript.role === 'model' && (
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center self-end">
                     <AbstractHorseLogo className="w-5 h-5 text-white" />
                 </div>
             )}
-            <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg ${transcript.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200'}`}>
+            <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg shadow-md ${transcript.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200'}`}>
                 <p className="text-sm">{transcript.text}</p>
             </div>
         </div>
     );
     
+    const getStatusIndicator = () => {
+        if (isLive) return <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>Live</>;
+        if (isConnecting) return <><span className="relative flex h-2 w-2 mr-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span></span>Connecting</>;
+        return <><span className="relative flex h-2 w-2 mr-2"><span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500"></span></span>Offline</>;
+    }
+
     return (
         <section className="py-16 md:py-24">
+            <div className="text-center mb-12">
+                <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">J.A.R.V.I.S. AI Companion</h2>
+                <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                    Engage in a real-time, voice-native conversation for deep race analysis and insights.
+                </p>
+            </div>
             <div className="max-w-3xl mx-auto">
-                <header className="text-center mb-8 relative">
-                    <div className="inline-flex items-center justify-center gap-2">
-                        <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">J.A.R.V.I.S. AI Companion</h2>
-                        {/* Tooltip explaining available voice commands */}
-                        <div className="relative group flex items-center">
-                            {/* FIX: Removed duplicate attributes from SVG element */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <div className="absolute bottom-full mb-2 w-max max-w-xs bg-gray-800 text-white text-xs rounded-lg py-2 px-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10 left-1/2 -translate-x-1/2">
-                                <p className="font-bold mb-1">Try saying:</p>
-                                <p>"Refresh the race data for me."</p>
-                                <p className="text-gray-400 text-[10px] mt-1">(This will update and navigate to the dashboard)</p>
-                                <div className="absolute w-2 h-2 bg-gray-800 transform rotate-45 -bottom-1 left-1/2 -translate-x-1/2"></div>
+                {/* Chat window */}
+                <div className="h-[70vh] min-h-[500px] max-h-[800px] bg-white dark:bg-[#161B22] border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col shadow-2xl shadow-blue-900/10">
+                    {/* Card Header */}
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between flex-shrink-0">
+                        <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+                                <AbstractHorseLogo className="w-6 h-6 text-white" />
                             </div>
+                            <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center">{getStatusIndicator()}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className="relative group flex items-center">
+                                <button className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-full">
+                                    <InfoIcon className="w-5 h-5"/>
+                                </button>
+                                <div className="absolute bottom-full mb-2 w-max max-w-xs bg-gray-800 text-white text-xs rounded-lg py-2 px-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10 right-0">
+                                    <p className="font-bold mb-1">Try saying:</p>
+                                    <p>"Refresh the race data for me."</p>
+                                    <p className="text-gray-400 text-[10px] mt-1">(This will update and navigate to the dashboard)</p>
+                                    <div className="absolute w-2 h-2 bg-gray-800 transform rotate-45 -bottom-1 right-3"></div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleClearHistory}
+                                className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-full"
+                                aria-label="Clear chat history"
+                                disabled={transcriptionHistory.length === 0}
+                            >
+                                <TrashIcon className="w-5 h-5"/>
+                            </button>
                         </div>
                     </div>
-                    <p className="mt-4 text-lg text-gray-600 dark:text-gray-400">Your personal, voice-native horse racing analyst. Ask anything.</p>
-                     {transcriptionHistory.length > 0 && (
-                        <button 
-                            onClick={handleClearHistory}
-                            className="absolute top-0 right-0 text-xs text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                            aria-label="Clear chat history"
-                        >
-                            Clear History
-                        </button>
-                    )}
-                </header>
-                
-                {/* Chat window */}
-                <div className="h-[50vh] bg-white dark:bg-[#161B22] border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col shadow-lg">
+                    
                     <div className="flex-1 p-4 overflow-y-auto">
                          {transcriptionHistory.length === 0 && !isLive && !isConnecting && (
                             <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400">
-                                <AbstractHorseLogo className="w-16 h-16 mb-4"/>
-                                <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Conversation is empty</h3>
-                                <p className="text-sm">Click "Start Conversation" below to begin.</p>
+                                <div className="relative mb-4">
+                                    <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
+                                         <AbstractHorseLogo className="w-12 h-12 text-gray-400 dark:text-gray-500"/>
+                                    </div>
+                                     <div className="absolute inset-0 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-full animate-spin [animation-duration:10s]"></div>
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">J.A.R.V.I.S. is offline</h3>
+                                <p className="text-sm">Click "Start Conversation" below to connect.</p>
                             </div>
                          )}
                         {transcriptionHistory.map(renderTranscript)}
@@ -529,7 +548,7 @@ const AIChatCompanion: React.FC<AIChatCompanionProps> = ({ navigateTo, onRefresh
                         )}
                         {currentModelTranscription && (
                              <div className="flex gap-3 my-4 justify-start">
-                                <div className="w-8 h-8 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-gray-700 flex-shrink-0 flex items-center justify-center self-end">
                                     <AbstractHorseLogo className="w-5 h-5 text-white" />
                                 </div>
                                 <div className="max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg bg-gray-200/70 dark:bg-gray-700/70 text-gray-900/80 dark:text-gray-200/80 animate-pulse">

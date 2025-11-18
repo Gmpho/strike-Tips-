@@ -7,59 +7,45 @@ interface FooterProps {
   currentView: View;
 }
 
-const Footer: React.FC<FooterProps> = ({ navigateTo, currentView }) => {
-  const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
-    e.preventDefault();
-    if (currentView !== 'dashboard') {
-      navigateTo('dashboard');
-      setTimeout(() => {
-        document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else {
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, view: View) => {
-    e.preventDefault();
-    navigateTo(view);
-  };
-
+const Footer: React.FC<FooterProps> = ({ navigateTo }) => {
+  
   return (
     <footer className="border-t border-gray-200 dark:border-gray-800 mt-16 md:mt-24">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-12">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div className="md:col-span-1 text-gray-900 dark:text-white">
-                    <div className="flex items-center space-x-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+                <div className="col-span-2 lg:col-span-1 space-y-4">
+                    <button onClick={() => navigateTo('dashboard')} className="flex items-center space-x-2 text-gray-900 dark:text-white">
                         <AbstractHorseLogo className="w-8 h-8" />
-                        <span className="font-bold text-xl">Horse Racing Analytics</span>
-                    </div>
-                     <p className="text-gray-600 dark:text-gray-400 mt-4 text-sm">
-                        AI-powered predictions and insights for global horse racing.
-                    </p>
+                        <span className="font-bold text-lg">EQUI • VISION</span>
+                    </button>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">The future of horse racing analytics, powered by AI.</p>
                 </div>
+                
                 <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white tracking-wider uppercase">Product</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Platform</h4>
                     <ul className="mt-4 space-y-2">
-                        <li><a href="#features" onClick={(e) => handleScrollTo(e, 'features')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Features</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'pricing')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Pricing</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'updates')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Updates</a></li>
+                        <li><button onClick={() => navigateTo('dashboard')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Dashboard</button></li>
+                        <li><button onClick={() => navigateTo('story')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Our Story</button></li>
+                        <li><button onClick={() => navigateTo('pricing')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Pricing</button></li>
+                        <li><button onClick={() => navigateTo('updates')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Updates</button></li>
                     </ul>
                 </div>
+
                 <div>
-                     <h4 className="font-semibold text-gray-900 dark:text-white tracking-wider uppercase">strike tips by AG Racing</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Company</h4>
                     <ul className="mt-4 space-y-2">
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'story')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">About</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'contact')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Contact Us</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'careers')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Careers</a></li>
+                        <li><button onClick={() => navigateTo('contact')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Contact Us</button></li>
+                        <li><button onClick={() => navigateTo('careers')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Careers</button></li>
+                         <li><a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">About Gemini</a></li>
                     </ul>
                 </div>
-                 <div>
-                     <h4 className="font-semibold text-gray-900 dark:text-white tracking-wider uppercase">Legal & Safety</h4>
+
+                <div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Legal</h4>
                     <ul className="mt-4 space-y-2">
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'terms')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Terms of Service</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'privacy')} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">Privacy Policy</a></li>
-                        <li><a href="#" onClick={(e) => handleNavClick(e, 'gambling')} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-semibold">Responsible Gambling</a></li>
+                        <li><button onClick={() => navigateTo('terms')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Terms of Service</button></li>
+                        <li><button onClick={() => navigateTo('privacy')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Privacy Policy</button></li>
+                        <li><button onClick={() => navigateTo('gambling')} className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Responsible Gambling</button></li>
                     </ul>
                 </div>
             </div>

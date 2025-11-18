@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon, ChatIcon } from './icons';
-import { fetchRealtimeRaces, Race, Horse } from '../lib/gemini';
+import { AnalyzeIcon, VolumeUpIcon, RefreshIcon, MicrophoneIcon, ChatIcon, TrophyIcon } from './icons';
+import { fetchRealtimeRaces, Race, Horse, fetchPastRaces, PastRace, PastHorse } from '../lib/gemini';
 import { speak } from '../lib/audio';
 
 /**
@@ -15,11 +15,34 @@ const getConfidenceColor = (confidence: number) => {
   return 'text-orange-500 dark:text-orange-400';
 };
 
+/**
+ * Provides Tailwind CSS classes for a horse's finishing position.
+ * @param position The horse's final position in the race.
+ * @returns A string of Tailwind CSS classes for styling.
+ */
+const getPositionStyling = (position: number) => {
+    switch (position) {
+        case 1:
+            return 'bg-yellow-400 text-yellow-900 font-bold'; // Gold
+        case 2:
+            return 'bg-gray-300 text-gray-800 font-bold'; // Silver
+        case 3:
+            return 'bg-amber-600 text-white font-bold'; // Bronze
+        default:
+            return 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+    }
+};
+
 interface PredictionDashboardProps {
   onAnalyzeWithCompanion: () => void;
-  onAnalyzeWithChat: () => void;
+  onAnalyzeWithChat: (race: Race) => void;
   refreshTrigger: number;
 }
+
+// FIX: Define explicit local types for past race data that includes the dynamically added 'confidence' property.
+// This resolves TypeScript errors related to accessing 'confidence' on the 'PastHorse' type.
+type PastHorseWithConfidence = PastHorse & { confidence: number };
+type PastRaceWithConfidence = Omit<PastRace, 'horses'> & { horses: PastHorseWithConfidence[] };
 
 /**
  * Injects placeholder dynamic data into the race data fetched from the API.
@@ -70,6 +93,19 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
     // State to manage which analysis dropdown is open
     const [openDropdown, setOpenDropdown] = useState<number | null>(null);
 
+    // State for managing the active tab
+    const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+    // State for past race results
+    // FIX: Use the new `PastRaceWithConfidence` type for the state.
+    const [pastRaces, setPastRaces] = useState<PastRaceWithConfidence[]>([]);
+    const [pastRacesLoading, setPastRacesLoading] = useState(false);
+    const [pastRacesError, setPastRacesError] = useState<string | null>(null);
+    
+    // State for the refresh button cooldown
+    const [cooldown, setCooldown] = useState(0);
+    const cooldownIntervalRef = useRef<number | null>(null);
+
+
     /**
      * Effect to close the analysis dropdown when clicking anywhere outside of it.
      */
@@ -80,6 +116,24 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
         document.addEventListener('click', closeDropdown);
         return () => document.removeEventListener('click', closeDropdown);
     }, []);
+
+     /**
+     * Effect to manage the cooldown timer countdown.
+     */
+    useEffect(() => {
+        if (cooldown > 0) {
+            cooldownIntervalRef.current = window.setInterval(() => {
+                setCooldown(prev => prev - 1);
+            }, 1000);
+        } else if (cooldownIntervalRef.current) {
+            clearInterval(cooldownIntervalRef.current);
+        }
+        return () => {
+            if (cooldownIntervalRef.current) {
+                clearInterval(cooldownIntervalRef.current);
+            }
+        };
+    }, [cooldown]);
 
     const handleToggleDropdown = (e: React.MouseEvent, raceId: number) => {
         e.stopPropagation();
@@ -104,7 +158,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
         }
         setError(null);
         try {
-            const raceData = await fetchRealtimeRaces();
+            const raceData = await fetchRealtimeRaces(isManualRefresh);
             const racesWithDynamicData = addDynamicData(raceData);
             setRaces(racesWithDynamicData);
         } catch (err) {
@@ -124,6 +178,52 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
         }
     }, []);
 
+     /**
+     * Memoized function to fetch past race results from the Gemini API.
+     * @param forceRefresh - Bypasses cache if true.
+     */
+    const loadPastRaces = useCallback(async (forceRefresh = false) => {
+        // Prevent re-fetching if data is already loaded, unless it's a forced refresh
+        if (!forceRefresh && pastRaces.length > 0) return;
+
+        setPastRacesLoading(true);
+        setPastRacesError(null);
+        try {
+            const pastRaceData = await fetchPastRaces(forceRefresh);
+            // Add simulated confidence scores for consistency with the upcoming races display
+            // FIX: Add a type annotation to ensure the created object matches the state's type.
+            const pastRacesWithConfidence: PastRaceWithConfidence[] = pastRaceData.map(race => ({
+                ...race,
+                horses: race.horses.map(horse => ({
+                    ...horse,
+                    confidence: Math.floor(Math.random() * (98 - 70 + 1)) + 70, 
+                }))
+            }));
+            setPastRaces(pastRacesWithConfidence);
+        } catch (err) {
+            if (err instanceof Error) {
+                setPastRacesError(err.message);
+            } else {
+                setPastRacesError('An unknown error occurred while fetching past race data.');
+            }
+            console.error(err);
+        } finally {
+            setPastRacesLoading(false);
+        }
+    }, [pastRaces.length]);
+
+     /**
+     * Effect to load data for the active tab when it's switched.
+     */
+    useEffect(() => {
+        if (activeTab === 'past' && isAuthenticated) {
+            loadPastRaces();
+        } else if (activeTab === 'upcoming' && isAuthenticated) {
+            loadRaces();
+        }
+    }, [activeTab, isAuthenticated, loadPastRaces, loadRaces]);
+
+
     /**
      * Effect for initial data loading and setting up an auto-refresh interval.
      * This runs only once when the component mounts and the user is authenticated.
@@ -134,8 +234,8 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
             return;
         }
         loadRaces();
-        // Refresh data every 30 minutes to keep it relatively fresh.
-        const intervalId = setInterval(() => loadRaces(), 30 * 60 * 1000);
+        // Refresh data every 30 minutes, forcing a cache bypass.
+        const intervalId = setInterval(() => loadRaces(true), 30 * 60 * 1000);
         return () => clearInterval(intervalId);
     }, [isAuthenticated, loadRaces]);
 
@@ -145,10 +245,11 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
      */
     useEffect(() => {
         if (prevRefreshTriggerRef.current !== refreshTrigger && isAuthenticated) {
-            loadRaces(true);
+            handleRefresh();
         }
         prevRefreshTriggerRef.current = refreshTrigger;
-    }, [refreshTrigger, isAuthenticated, loadRaces]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshTrigger, isAuthenticated]);
 
     /**
      * Effect to check for browser support for the Web Speech API on mount
@@ -201,8 +302,8 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
             console.log('Voice command received:', command);
 
             if (command.includes('refresh data')) {
-                loadRaces(true);
-                speak('Refreshing race data now.');
+                handleRefresh();
+                speak(`Refreshing ${activeTab === 'upcoming' ? 'race' : 'past results'} data now.`);
             } else if (command.includes('analyze race')) {
                 onAnalyzeWithCompanion();
             }
@@ -249,7 +350,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
      * This adds a dynamic feel to the dashboard.
      */
     useEffect(() => {
-        if (!isAuthenticated || races.length === 0) return;
+        if (!isAuthenticated || races.length === 0 || activeTab !== 'upcoming') return;
 
         const fluctuateOdd = (currentOdd: string): string => {
             let odd = currentOdd;
@@ -326,7 +427,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
         }, 2000); // Update every 2 seconds
 
         return () => clearInterval(intervalId);
-    }, [isAuthenticated, races.length, voiceFeedbackEnabled]);
+    }, [isAuthenticated, races.length, voiceFeedbackEnabled, activeTab]);
 
 
     const handleToggleRow = (raceId: number, horseId: number) => {
@@ -335,6 +436,20 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
             [raceId]: prev[raceId] === horseId ? null : horseId
         }));
     };
+
+    /**
+     * Handles the manual refresh action from the user.
+     */
+    const handleRefresh = useCallback(() => {
+        if (cooldown > 0) return;
+
+        if (activeTab === 'upcoming') {
+            loadRaces(true);
+        } else {
+            loadPastRaces(true);
+        }
+        setCooldown(15); // Start 15-second cooldown
+    }, [cooldown, activeTab, loadRaces, loadPastRaces]);
     
     // Render a call-to-action if the user is not authenticated.
     if (!isAuthenticated) {
@@ -356,66 +471,20 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
         )
     }
 
-    return (
-        <section className="py-16 md:py-24" id="predictions">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
-                <div>
-                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">Live Race Predictions</h2>
-                    <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Real-time data and AI-powered insights for upcoming races.</p>
-                </div>
-                <div className="flex-shrink-0 flex items-center gap-2 sm:gap-4">
-                    <button
-                        onClick={() => setVoiceFeedbackEnabled(!voiceFeedbackEnabled)}
-                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 ${
-                            voiceFeedbackEnabled
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
-                        }`}
-                        aria-pressed={voiceFeedbackEnabled}
-                    >
-                        <VolumeUpIcon className="w-5 h-5" />
-                        <span className="hidden sm:inline">{voiceFeedbackEnabled ? 'Voice ON' : 'Voice OFF'}</span>
-                    </button>
-                     <button
-                        onClick={handleToggleListening}
-                        disabled={!isSpeechRecognitionSupported}
-                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            isListening
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
-                                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
-                        }`}
-                        aria-label={isListening ? 'Stop listening for voice commands' : 'Start listening for voice commands'}
-                    >
-                        <MicrophoneIcon className="w-5 h-5" />
-                        <span className="hidden sm:inline">{isListening ? 'Listening...' : 'Commands'}</span>
-                    </button>
-                    <button
-                        onClick={() => loadRaces(true)}
-                        disabled={isRefreshing || loading}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-wait"
-                        aria-label="Refresh race data"
-                    >
-                        <RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                         <span className="hidden sm:inline">Refresh</span>
-                    </button>
-                </div>
-            </div>
-            
-            {/* Conditional rendering for loading, error, and data states */}
+    const renderUpcomingRaces = () => (
+        <>
             {loading && (
                 <div className="flex justify-center items-center h-40">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                     <p className="ml-4 text-gray-600 dark:text-gray-400">Connecting to live data feed...</p>
                 </div>
             )}
-
             {error && (
                 <div className="text-center bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-500 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg" role="alert">
                     <strong className="font-bold">Error: </strong>
                     <span className="block sm:inline">{error}</span>
                 </div>
             )}
-
             {!loading && !error && races.length > 0 && (
                 <div className="space-y-12">
                     {races.map((race) => (
@@ -466,7 +535,7 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
                                                         </button>
                                                     </li>
                                                     <li role="menuitem">
-                                                        <button onClick={() => handleAnalysisSelection(onAnalyzeWithChat)} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                                                        <button onClick={() => handleAnalysisSelection(() => onAnalyzeWithChat(race))} className="w-full text-left flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50">
                                                             <ChatIcon className="w-4 h-4" />
                                                             With Expert Chat
                                                         </button>
@@ -512,7 +581,6 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
                                                             </div>
                                                             <button onClick={() => handleToggleRow(race.id, (horse as any).id)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline flex items-center gap-1">
                                                                 Details
-                                                                {/* FIX: Removed duplicate attributes from SVG element */}
                                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-200 ${expandedRows[race.id] === (horse as any).id ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                                 </svg>
@@ -577,7 +645,6 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
                     ))}
                 </div>
             )}
-
             {!loading && !error && races.length === 0 && (
                  <div className="text-center bg-gray-100 dark:bg-[#161B22] p-8 md:p-12 rounded-lg border border-gray-200 dark:border-gray-800">
                     <h2 className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white">No Races Found</h2>
@@ -586,6 +653,191 @@ const PredictionDashboard: React.FC<PredictionDashboardProps> = ({ onAnalyzeWith
                     </p>
                 </div>
             )}
+        </>
+    );
+
+    const renderPastResults = () => {
+        // Find the AI's top pick for a given race based on confidence score.
+        // FIX: Update the parameter type to use the new `PastRaceWithConfidence`.
+        const getAiTopPick = (race: PastRaceWithConfidence) => {
+             return race.horses.reduce((prev, current) => (prev.confidence > current.confidence) ? prev : current);
+        };
+
+        return (
+            <>
+                {pastRacesLoading && (
+                    <div className="flex justify-center items-center h-40">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                        <p className="ml-4 text-gray-600 dark:text-gray-400">Fetching historical race results...</p>
+                    </div>
+                )}
+                {pastRacesError && (
+                    <div className="text-center bg-red-100 dark:bg-red-900/20 border border-red-400 dark:border-red-500 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg" role="alert">
+                        <strong className="font-bold">Error: </strong>
+                        <span className="block sm:inline">{pastRacesError}</span>
+                    </div>
+                )}
+                {!pastRacesLoading && !pastRacesError && pastRaces.length > 0 && (
+                    <div className="space-y-12">
+                        {pastRaces.map((race) => {
+                             const aiTopPick = getAiTopPick(race);
+                             const wasTopPickCorrect = aiTopPick.resultPosition === 1;
+
+                            return (
+                                <div key={race.id} className="bg-white dark:bg-[#161B22] rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-lg hover:shadow-blue-900/20 transition-shadow duration-300">
+                                    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                                                {race.course} - Race {race.raceNumber}
+                                                <span className="text-xs font-semibold uppercase bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">{race.raceDate}</span>
+                                            </h3>
+                                            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                              <span>Track: <span className="font-semibold text-gray-700 dark:text-gray-300">{race.trackCondition}</span></span>
+                                              <span className="hidden sm:inline">|</span>
+                                              <span>Distance: <span className="font-semibold text-gray-700 dark:text-gray-300">{race.distance}</span></span>
+                                            </div>
+                                        </div>
+                                         {wasTopPickCorrect && (
+                                            <div className="flex-shrink-0 bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-sm font-bold px-4 py-2 rounded-full flex items-center gap-2">
+                                                <TrophyIcon className="w-5 h-5"/>
+                                                Top Pick Won!
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-gray-600 dark:text-gray-400">
+                                            <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-100 dark:bg-[#21262D]/30">
+                                                <tr>
+                                                    <th scope="col" className="px-6 py-3 text-center">Result</th>
+                                                    <th scope="col" className="px-6 py-3">Horse</th>
+                                                    <th scope="col" className="px-6 py-3">Jockey</th>
+                                                    <th scope="col" className="px-6 py-3">SP Odds</th>
+                                                    <th scope="col" className="px-6 py-3">AI Confidence</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {race.horses.sort((a, b) => a.resultPosition - b.resultPosition).map((horse) => (
+                                                    <tr key={horse.id} className={`border-b border-gray-200 dark:border-gray-800 last:border-b-0 ${horse.id === aiTopPick.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`px-2 py-1 text-xs rounded-full ${getPositionStyling(horse.resultPosition)}`}>
+                                                                {horse.resultPosition}
+                                                            </span>
+                                                        </td>
+                                                        <td scope="row" className="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                                                            {horse.name}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {horse.jockey}
+                                                        </td>
+                                                        <td className="px-6 py-4 font-mono">
+                                                            {horse.odds}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`font-bold w-10 ${getConfidenceColor(horse.confidence)}`}>{horse.confidence}%</span>
+                                                                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div className={`h-2 rounded-full ${getConfidenceColor(horse.confidence).replace('text-green-500', 'bg-green-500').replace('text-yellow-500', 'bg-yellow-500').replace('text-orange-500', 'bg-orange-500').replace('dark:text-green-400', 'dark:bg-green-400').replace('dark:text-yellow-400', 'dark:bg-yellow-400').replace('dark:text-orange-400', 'dark:bg-orange-400')}`} style={{ width: `${horse.confidence}%` }}></div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+                 {!pastRacesLoading && !pastRacesError && pastRaces.length === 0 && (
+                     <div className="text-center bg-gray-100 dark:bg-[#161B22] p-8 md:p-12 rounded-lg border border-gray-200 dark:border-gray-800">
+                        <h2 className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white">No Past Results Found</h2>
+                        <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+                            We couldn't retrieve historical data at this time. This is usually a temporary issue. Please try again later.
+                        </p>
+                    </div>
+                )}
+            </>
+        );
+    };
+
+    return (
+        <section className="py-16 md:py-24" id="predictions">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 dark:text-white">Prediction Dashboard</h2>
+                    <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Analyze upcoming races or review past AI performance.</p>
+                </div>
+                <div className="flex-shrink-0 flex items-center gap-2 sm:gap-4">
+                    <button
+                        onClick={() => setVoiceFeedbackEnabled(!voiceFeedbackEnabled)}
+                        disabled={activeTab === 'past'}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            voiceFeedbackEnabled
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                        aria-pressed={voiceFeedbackEnabled}
+                    >
+                        <VolumeUpIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline">{voiceFeedbackEnabled ? 'Voice ON' : 'Voice OFF'}</span>
+                    </button>
+                     <button
+                        onClick={handleToggleListening}
+                        disabled={!isSpeechRecognitionSupported}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isListening
+                                ? 'bg-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse'
+                                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                        aria-label={isListening ? 'Stop listening for voice commands' : 'Start listening for voice commands'}
+                    >
+                        <MicrophoneIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline">{isListening ? 'Listening...' : 'Commands'}</span>
+                    </button>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || loading || pastRacesLoading || cooldown > 0}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-wait"
+                        aria-label="Refresh race data"
+                    >
+                        <RefreshIcon className={`w-5 h-5 ${isRefreshing || pastRacesLoading ? 'animate-spin' : ''}`} />
+                         <span className="hidden sm:inline w-20 text-center">{cooldown > 0 ? `Wait ${cooldown}s` : 'Refresh'}</span>
+                    </button>
+                </div>
+            </div>
+
+            <div className="mb-8 border-b border-gray-200 dark:border-gray-800">
+                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button
+                        onClick={() => setActiveTab('upcoming')}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                            activeTab === 'upcoming'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
+                        aria-current={activeTab === 'upcoming' ? 'page' : undefined}
+                    >
+                        Upcoming Races
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('past')}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                            activeTab === 'past'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
+                         aria-current={activeTab === 'past' ? 'page' : undefined}
+                    >
+                        Past Results
+                    </button>
+                </nav>
+            </div>
+            
+            {activeTab === 'upcoming' && renderUpcomingRaces()}
+            {activeTab === 'past' && renderPastResults()}
+            
         </section>
     );
 };

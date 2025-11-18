@@ -17,6 +17,7 @@ import Careers from './components/Careers';
 import Terms from './components/Terms';
 import Privacy from './components/Privacy';
 import Gambling from './components/Gambling';
+import { Race } from './lib/gemini';
 
 
 /**
@@ -34,6 +35,13 @@ export type View = 'dashboard' | 'companion' | 'articles' | 'story' | 'pricing' 
 const App: React.FC = () => {
   // State to track the current active view. Defaults to 'dashboard'.
   const [view, setView] = useState<View>('dashboard');
+
+  /**
+   * State to hold race data that needs to be passed between components,
+   * specifically from the PredictionDashboard to the Chatbot for analysis.
+   */
+  const [raceToAnalyze, setRaceToAnalyze] = useState<Race | null>(null);
+
 
   /**
    * State to trigger a manual data refresh in child components.
@@ -66,25 +74,14 @@ const App: React.FC = () => {
     navigateTo('companion');
   };
 
-  const handleAnalyzeWithChat = () => {
+  /**
+   * Sets the race data to be analyzed and navigates to the chat view.
+   * @param race The race object from the prediction dashboard.
+   */
+  const handleAnalyzeWithChat = (race: Race) => {
+    setRaceToAnalyze(race);
     navigateTo('chat');
   };
-
-  /**
-   * A functional component to group the content of the main dashboard view.
-   * This keeps the main render logic cleaner.
-   */
-  const DashboardContent = () => (
-    <>
-      <Hero />
-      <Features />
-      <PredictionDashboard 
-        onAnalyzeWithCompanion={handleAnalyzeWithCompanion}
-        onAnalyzeWithChat={handleAnalyzeWithChat}
-        refreshTrigger={refreshTrigger} 
-      />
-    </>
-  );
 
   /**
    * Renders the main content based on the current 'view' state.
@@ -93,7 +90,17 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (view) {
       case 'dashboard':
-        return <DashboardContent />;
+        // This content now appears below the Hero component on the dashboard page.
+        return (
+            <>
+              <Features />
+              <PredictionDashboard 
+                onAnalyzeWithCompanion={handleAnalyzeWithCompanion}
+                onAnalyzeWithChat={handleAnalyzeWithChat}
+                refreshTrigger={refreshTrigger} 
+              />
+            </>
+        );
       case 'companion':
         return <AIChatCompanion navigateTo={navigateTo} onRefreshData={handleTriggerRefresh} />;
       case 'articles':
@@ -103,7 +110,7 @@ const App: React.FC = () => {
       case 'pricing':
         return <Pricing />;
       case 'chat':
-        return <Chat />;
+        return <Chat raceToAnalyze={raceToAnalyze} setRaceToAnalyze={setRaceToAnalyze} />;
       case 'updates':
         return <Updates />;
       case 'contact':
@@ -117,24 +124,53 @@ const App: React.FC = () => {
       case 'gambling':
         return <Gambling />;
       default:
-        return <DashboardContent />;
+        return (
+             <>
+              <Features />
+              <PredictionDashboard 
+                onAnalyzeWithCompanion={handleAnalyzeWithCompanion}
+                onAnalyzeWithChat={handleAnalyzeWithChat}
+                refreshTrigger={refreshTrigger} 
+              />
+            </>
+        );
     }
   };
 
+  const isDashboardView = view === 'dashboard';
+
   return (
-    // Wrap the entire application in context providers for global state management.
     <ThemeProvider>
       <AuthProvider>
-        <div className="bg-white dark:bg-[#0D1117] text-gray-900 dark:text-white min-h-screen flex flex-col">
-          <div className="flex-grow">
+        <div className="min-h-screen">
+          
+          {/* Layout for Dashboard View */}
+          {isDashboardView ? (
+            <div className="relative">
+              <div className="absolute top-0 left-0 right-0 z-30">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+                  <Header currentView={view} navigateTo={navigateTo} isOverlay />
+                </div>
+              </div>
+              <main>
+                <Hero />
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+                    {renderContent()}
+                </div>
+              </main>
+              <Footer navigateTo={navigateTo} currentView={view} />
+            </div>
+          ) : (
+            // Layout for all other views
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
               <Header currentView={view} navigateTo={navigateTo} />
               <main>
                 {renderContent()}
               </main>
+              <Footer navigateTo={navigateTo} currentView={view} />
             </div>
-          </div>
-          <Footer navigateTo={navigateTo} currentView={view} />
+          )}
+          
         </div>
       </AuthProvider>
     </ThemeProvider>
