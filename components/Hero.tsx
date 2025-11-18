@@ -125,8 +125,8 @@ const Hero: React.FC = () => {
     };
     
     return (
-        // THEME CHANGE: Added theme-aware background gradient and text color.
-        <section className="relative h-screen min-h-[700px] flex flex-col bg-gradient-to-b from-gray-100 to-gray-200 dark:from-[#05060a] dark:to-[#071024] text-gray-900 dark:text-white overflow-hidden">
+        // THEME CHANGE: Refined light mode to use an off-white bg for a cleaner, modern look.
+        <section className="relative h-screen min-h-[700px] flex flex-col bg-gray-50 dark:bg-gradient-to-b dark:from-[#05060a] dark:to-[#071024] text-gray-900 dark:text-white overflow-hidden">
              {/* 3D Canvas Container */}
             <div 
                 ref={mountRef} 
@@ -141,7 +141,6 @@ const Hero: React.FC = () => {
                         <h1 className="text-5xl md:text-6xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-pink-500 dark:from-blue-400 dark:to-pink-500 leading-tight">
                            Global Performance Analytics
                         </h1>
-                        {/* THEME CHANGE: Adjusted text color for light mode. */}
                         <p className="mt-4 text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
                             Real-time horse racing data with predictive analytics and performance metrics
                         </p>
@@ -150,27 +149,27 @@ const Hero: React.FC = () => {
 
                 <div className="absolute bottom-[120px] left-0 right-0 px-4 sm:px-6 lg:px-8">
                      <div className="max-w-7xl mx-auto flex justify-between items-center">
-                        {/* THEME CHANGE: Adjusted track selector styles for light mode. */}
-                        <div className="hidden sm:flex items-center gap-2 p-1 bg-white/30 dark:bg-black/20 backdrop-blur-sm rounded-lg border border-gray-300 dark:border-white/10">
+                        {/* THEME CHANGE: Updated light mode styles for a cleaner "floating" look. */}
+                        <div className="hidden sm:flex items-center gap-2 p-1 bg-white dark:bg-black/20 backdrop-blur-sm rounded-lg border border-gray-200 dark:border-white/10 shadow-md dark:shadow-none">
                             {['Kenilworth', 'Ascot', 'Gulfstream', 'Sha Tin'].map(track => (
                                 <button 
                                     key={track}
                                     onClick={() => setActiveTrack(track)}
-                                    // THEME CHANGE: Adjusted button styles for light mode.
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTrack === track ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/5'}`}
+                                    // THEME CHANGE: Added distinct active state for light mode.
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${activeTrack === track ? 'bg-blue-100 dark:bg-white/10 text-blue-700 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}`}
                                 >
                                     {track}
                                 </button>
                             ))}
                         </div>
 
-                        {/* THEME CHANGE: Adjusted control styles for light mode. */}
-                        <div className="flex items-center gap-2 p-1 bg-white/30 dark:bg-black/20 backdrop-blur-sm rounded-full border border-gray-300 dark:border-white/10">
-                            <button onClick={handleResetView} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors" aria-label="Reset View">↺</button>
-                            <button onClick={handleToggleRotation} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors" aria-label="Toggle Rotation">
+                        {/* THEME CHANGE: Updated light mode styles for a cleaner "floating" look. */}
+                        <div className="flex items-center gap-2 p-1 bg-white dark:bg-black/20 backdrop-blur-sm rounded-full border border-gray-200 dark:border-white/10 shadow-md dark:shadow-none">
+                            <button onClick={handleResetView} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors" aria-label="Reset View">↺</button>
+                            <button onClick={handleToggleRotation} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors" aria-label="Toggle Rotation">
                                 {isRotating ? '⏸' : '▶️'}
                             </button>
-                            <button onClick={handleToggle3D} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors" aria-label="Toggle 3D">
+                            <button onClick={handleToggle3D} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors" aria-label="Toggle 3D">
                                 {is3dEnabled ? '⧉' : '□'}
                             </button>
                         </div>
@@ -178,16 +177,15 @@ const Hero: React.FC = () => {
                 </div>
 
 
-                {/* THEME CHANGE: Adjusted footer styles for light mode. */}
-                <div className="bg-white/30 dark:bg-black/30 backdrop-blur-md border-t border-gray-300 dark:border-white/10">
+                {/* THEME CHANGE: Updated light mode styles for a cleaner "floating" look. */}
+                <div className="bg-white/80 dark:bg-black/30 backdrop-blur-md border-t border-gray-200 dark:border-white/10">
                     <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
                         <div className="grid grid-cols-1 md:grid-cols-2">
-                            {/* THEME CHANGE: Adjusted border color. */}
-                             <div className="py-4 md:border-r border-gray-400/50 dark:border-white/10">
+                            {/* THEME CHANGE: Refined border color. */}
+                             <div className="py-4 md:border-r border-gray-200 dark:border-white/10">
                                 <h4 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-3">Track Statistics</h4>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     <div>
-                                        {/* THEME CHANGE: Adjusted text colors. */}
                                         <p className="text-sm text-gray-700 dark:text-gray-400">Active Races</p>
                                         <p className="text-xl font-bold text-gray-900 dark:text-white">24</p>
                                     </div>
@@ -209,25 +207,24 @@ const Hero: React.FC = () => {
                                 <h4 className="text-xs font-bold uppercase tracking-widest text-pink-500 dark:text-pink-400 mb-3 ml-0 md:ml-6">Next Race: Kentucky Derby</h4>
                                 <div className="flex flex-col sm:flex-row gap-4 md:ml-6">
                                     <div className="flex-shrink-0">
-                                        {/* THEME CHANGE: Adjusted text colors. */}
                                         <p className="font-bold text-gray-900 dark:text-white">Kentucky Derby</p>
                                         <p className="text-sm text-gray-700 dark:text-gray-400">1.25 miles • Fast track • 6:50 PM EST</p>
                                     </div>
                                     <div className="flex-grow grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                        {/* THEME CHANGE: Adjusted card styles. */}
-                                        <div className="bg-black/5 dark:bg-white/5 rounded p-2 text-center">
+                                        {/* THEME CHANGE: Refined card styles for light mode. */}
+                                        <div className="bg-gray-100 dark:bg-white/5 rounded p-2 text-center">
                                             <p className="text-xs font-semibold text-gray-900 dark:text-white">Thunder Bolt</p>
                                             <p className="text-xs text-pink-500 dark:text-pink-400 font-bold">3/1</p>
                                         </div>
-                                        <div className="bg-black/5 dark:bg-white/5 rounded p-2 text-center">
+                                        <div className="bg-gray-100 dark:bg-white/5 rounded p-2 text-center">
                                             <p className="text-xs font-semibold text-gray-900 dark:text-white">Midnight Run</p>
                                             <p className="text-xs text-pink-500 dark:text-pink-400 font-bold">5/2</p>
                                         </div>
-                                        <div className="bg-black/5 dark:bg-white/5 rounded p-2 text-center">
+                                        <div className="bg-gray-100 dark:bg-white/5 rounded p-2 text-center">
                                             <p className="text-xs font-semibold text-gray-900 dark:text-white">Golden Spirit</p>
                                             <p className="text-xs text-pink-500 dark:text-pink-400 font-bold">7/2</p>
                                         </div>
-                                        <div className="bg-black/5 dark:bg-white/5 rounded p-2 text-center">
+                                        <div className="bg-gray-100 dark:bg-white/5 rounded p-2 text-center">
                                             <p className="text-xs font-semibold text-gray-900 dark:text-white">Silver Streak</p>
                                             <p className="text-xs text-pink-500 dark:text-pink-400 font-bold">9/2</p>
                                         </div>
